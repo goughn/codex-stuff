@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v1.76);
+console.log("type 106 github v2);
 console.log("PLEASE WORK");
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -128,8 +128,8 @@ function setItem_105(itemInstance, instanceObj) {
     }
 
     // Add some basic styling
-    const style = document.createElement('style');
-    style.textContent = `
+    const buttonStyle = document.createElement('style');
+    buttonStyle.textContent = `
         .python-buttons button {
             padding: 8px 16px;
             border: none;
@@ -157,7 +157,7 @@ function setItem_105(itemInstance, instanceObj) {
             cursor: not-allowed;
         }
     `;
-    document.head.appendChild(style);
+    document.head.appendChild(buttonStyle);
 }
 
 function obtenerUltimoDivMatplotlib() {
@@ -282,8 +282,8 @@ async function runPythonTests(button, tests) {
 }
 
 // Add some styling for test results
-const style = document.createElement('style');
-style.textContent += `
+const testResultStyle = document.createElement('style');
+testResultStyle.textContent += `
     .test-status {
         margin: 10px 0;
         padding: 8px;
@@ -300,4 +300,4 @@ style.textContent += `
         white-space: pre-wrap;
     }
 `;
-document.head.appendChild(style);
+document.head.appendChild(testResultStyle);
