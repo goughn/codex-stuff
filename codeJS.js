@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v2.6");
+console.log("type 106 github v2.7");
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
     var closeHolderDiv = document.querySelector('.instanceHolder');
@@ -25,35 +25,38 @@ function createTextArea() {
 function setItem_105(itemInstance, instanceObj) {
     console.log("File NoteBookInstance_Pyodide.js");
     console.log("id: " + instanceObj.iid);
-    answerElement = itemInstance.querySelector(".answer");
+    
+    // Get the answer element
+    const answerElement = itemInstance.querySelector(".answer");
+    if (!answerElement) {
+        console.error("No answer element found");
+        return;
+    }
 
-    if (answerElement.value.trim() != "") {
+    // Handle existing answer
+    if (answerElement.value.trim() !== "") {
         try {
-            resp = JSON.parse(answerElement.value);
+            const resp = JSON.parse(answerElement.value);
             answerElement.value = resp.code;
         } catch (e) {
             console.log("Error parsing answer:", e);
         }
     }
     
-    // create a div for the execution of the python
-    itemid = itemInstance.id;
-    comp = document.createElement("div");
-    comp.id = "o" + itemInstance.id;
-    comp.setAttribute("class", "itemContent viewAnswer");
-    comp.setAttribute(
-        "style",
-        "background-color:white; width: 50%; float: right;"
-    );
-    answer = itemInstance.querySelector(".answer");
-    answer.parentNode.insertBefore(comp, answer);
-    answer.style.width = "44%";
-    answer.setAttribute("id", "t" + itemid);
+    // Create output div
+    const itemid = itemInstance.id;
+    const outputDiv = document.createElement("div");
+    outputDiv.id = "o" + itemid;
+    outputDiv.className = "itemContent viewAnswer";
+    outputDiv.style.backgroundColor = "white";
+    outputDiv.style.width = "50%";
+    outputDiv.style.float = "right";
     
-    problemElement = itemInstance.querySelector(".problem");
-    pElement = document.createElement("P");
-    problemElement.appendChild(pElement);
-
+    // Insert output div before answer
+    answerElement.parentNode.insertBefore(outputDiv, answerElement);
+    answerElement.style.width = "44%";
+    answerElement.id = "t" + itemid;
+    
     // Create buttons container
     const buttonsContainer = document.createElement("div");
     buttonsContainer.className = "python-buttons";
@@ -63,50 +66,41 @@ function setItem_105(itemInstance, instanceObj) {
 
     // Create Run button
     const runButton = document.createElement("button");
-    runButton.setAttribute("type", "button");
+    runButton.type = "button";
     runButton.className = "run-button";
-    runButton.innerHTML = "Run Code";
-    runButton.addEventListener("click", async function () {
-        var originalText = this.textContent;
+    runButton.textContent = "Run Code";
+    runButton.onclick = async function() {
+        const originalText = this.textContent;
         this.textContent = "Running...";
         this.disabled = true;
         try {
-            // Clear previous output
-            const outputDiv = document.getElementById("o" + itemid);
             outputDiv.textContent = "";
-            
             await runPython2(this);
         } finally {
             this.textContent = originalText;
             this.disabled = false;
             
-            // Handle matplotlib output
             setTimeout(() => {
-                var divMatplotlib = obtenerUltimoDivMatplotlib();
+                const divMatplotlib = obtenerUltimoDivMatplotlib();
                 if (divMatplotlib) {
                     console.log('Found matplotlib div:', divMatplotlib.id);
-                    var contenedor = runButton.parentElement;
                     document.body.insertBefore(divMatplotlib, document.getElementsByClassName("banner")[0]);
                 }
             }, 100);
         }
-    });
+    };
 
     // Create Test button
     const testButton = document.createElement("button");
-    testButton.setAttribute("type", "button");
+    testButton.type = "button";
     testButton.className = "test-button";
-    testButton.innerHTML = "Run Tests";
-    testButton.addEventListener("click", async function () {
-        var originalText = this.textContent;
+    testButton.textContent = "Run Tests";
+    testButton.onclick = async function() {
+        const originalText = this.textContent;
         this.textContent = "Testing...";
         this.disabled = true;
         try {
-            // Clear previous output
-            const outputDiv = document.getElementById("o" + itemid);
             outputDiv.textContent = "";
-            
-            // Get test cases from the problem element
             const problemElement = itemInstance.querySelector(".problem");
             const testCases = problemElement.getAttribute("data-tests");
             if (testCases) {
@@ -119,48 +113,50 @@ function setItem_105(itemInstance, instanceObj) {
             this.textContent = originalText;
             this.disabled = false;
         }
-    });
+    };
 
     // Add buttons to container
     buttonsContainer.appendChild(runButton);
     buttonsContainer.appendChild(testButton);
     
-    // Add buttons after the answer textarea
-    if (answer && answer.parentNode) {
-        answer.parentNode.insertBefore(buttonsContainer, answer.nextSibling);
-    }
+    // Add buttons immediately after answer textarea
+    answerElement.parentNode.insertBefore(buttonsContainer, answerElement.nextSibling);
 
-    // Add some basic styling
-    const buttonStyle = document.createElement('style');
-    buttonStyle.textContent = `
-        .python-buttons button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: background-color 0.2s;
-        }
-        .run-button {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .run-button:hover {
-            background-color: #45a049;
-        }
-        .test-button {
-            background-color: #2196F3;
-            color: white;
-        }
-        .test-button:hover {
-            background-color: #1e88e5;
-        }
-        .run-button:disabled, .test-button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-    `;
-    document.head.appendChild(buttonStyle);
+    // Add styles
+    const styleId = 'python-buttons-style';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .python-buttons button {
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: bold;
+                transition: background-color 0.2s;
+            }
+            .run-button {
+                background-color: #4CAF50;
+                color: white;
+            }
+            .run-button:hover {
+                background-color: #45a049;
+            }
+            .test-button {
+                background-color: #2196F3;
+                color: white;
+            }
+            .test-button:hover {
+                background-color: #1e88e5;
+            }
+            .run-button:disabled, .test-button:disabled {
+                background-color: #cccccc;
+                cursor: not-allowed;
+            }
+        `;
+        document.head.appendChild(style);
+    }
 }
 
 function obtenerUltimoDivMatplotlib() {
