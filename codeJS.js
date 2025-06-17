@@ -1,5 +1,6 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v2.75");
+console.log("type 106 github v2.76");
+console.log("please?");
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
     var closeHolderDiv = document.querySelector('.instanceHolder');
