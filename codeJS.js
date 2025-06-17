@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v2.8");
+console.log("type 106 github v2.9");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -24,8 +24,8 @@ function createTextArea() {
 }
 
 
-function setItem_105(itemInstance, instanceObj) {
-    console.log("=== setItem_105 START ===", new Date().toISOString());
+function setItem_106(itemInstance, instanceObj) {
+    console.log("=== setItem_106 START ===", new Date().toISOString());
     console.log("Item Instance:", {
         id: itemInstance.id,
         className: itemInstance.className,
@@ -248,7 +248,7 @@ function setItem_105(itemInstance, instanceObj) {
         }
     });
     
-    console.log("=== setItem_105 END ===", new Date().toISOString());
+    console.log("=== setItem_106 END ===", new Date().toISOString());
 }
 
 function obtenerUltimoDivMatplotlib() {
