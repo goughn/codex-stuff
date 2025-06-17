@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v2.5");
+console.log("type 106 github v2.6");
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
     var closeHolderDiv = document.querySelector('.instanceHolder');
@@ -28,11 +28,15 @@ function setItem_105(itemInstance, instanceObj) {
     answerElement = itemInstance.querySelector(".answer");
 
     if (answerElement.value.trim() != "") {
-        resp = JSON.parse(answerElement.value);
-        answerElement.value = resp.code;
+        try {
+            resp = JSON.parse(answerElement.value);
+            answerElement.value = resp.code;
+        } catch (e) {
+            console.log("Error parsing answer:", e);
+        }
     }
     
-    // create a div for the execution of the python similar to the file NoteBookInstance_HTML.js
+    // create a div for the execution of the python
     itemid = itemInstance.id;
     comp = document.createElement("div");
     comp.id = "o" + itemInstance.id;
@@ -204,27 +208,25 @@ async function runPython2(button) {
 }
 
 function saveAnswer_105(button) {
-    /* don't execute here because runPython2 is async 
-    var originalText = button.textContent;
-    button.textContent = "Executing...";
-    button.disabled = true;
-
-    await runPython2(button);
-    console.log("executed runPython2");
-    button.textContent = originalText;
-    button.disabled = false;
-    */
     var respObject = {};
     itemInstance = button.closest(".itemInstance");
     pyCode = itemInstance.querySelector(".answer").value;
     respObject.code = pyCode;
 
-    //let outputDiv = document.getElementById("console-output");
+    // Get the output div and its content
     let outputDiv = document.getElementById("o" + itemInstance.id);
-    output = outputDiv.textContent;
-    respObject.output = output;
-    resp = JSON.stringify(respObject);
-    return resp;
+    if (outputDiv) {
+        output = outputDiv.textContent;
+        respObject.output = output;
+    } else {
+        respObject.output = "";
+    }
+    
+    // Store the response in the answer element
+    answerElement = itemInstance.querySelector(".answer");
+    answerElement.value = JSON.stringify(respObject);
+    
+    return JSON.stringify(respObject);
 }
 
 async function runPythonTests(button, tests) {
