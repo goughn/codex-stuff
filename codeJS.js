@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v2.4");
+console.log("type 106 github v2.5");
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
     var closeHolderDiv = document.querySelector('.instanceHolder');
@@ -280,27 +280,29 @@ async function runPythonTests(button, tests) {
     }
 }
 
-// Check if style already exists
-let testResultStyle = document.getElementById('test-result-style');
-if (!testResultStyle) {
-    testResultStyle = document.createElement('style');
-    testResultStyle.id = 'test-result-style';
-    testResultStyle.textContent = `
-        .test-status {
-            margin: 10px 0;
-            padding: 8px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-        .test-list {
-            margin-top: 10px;
-        }
-        .test-result {
-            margin: 5px 0;
-            padding: 5px;
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-    `;
-    document.head.appendChild(testResultStyle);
-}
+// Add styles only if they don't exist
+(function() {
+    const styleId = 'python-test-result-style-v2';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.textContent = `
+            .test-status {
+                margin: 10px 0;
+                padding: 8px;
+                background-color: #f8f9fa;
+                border-radius: 4px;
+            }
+            .test-list {
+                margin-top: 10px;
+            }
+            .test-result {
+                margin: 5px 0;
+                padding: 5px;
+                font-family: monospace;
+                white-space: pre-wrap;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+})();
