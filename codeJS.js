@@ -1,6 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v2.91");
-console.log("please......");
+console.log("type 106 github v3");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -204,28 +203,26 @@ function setItem_106(itemInstance, instanceObj) {
         style.textContent = `
             .python-buttons button {
                 padding: 8px 16px;
-                border: none;
+                border: 1px solid #888;
                 border-radius: 4px;
                 cursor: pointer;
-                font-weight: bold;
-                transition: background-color 0.2s;
+                font-weight: normal;
+                background: #fff;
+                color: #222;
+                box-shadow: none;
+                transition: background-color 0.2s, border-color 0.2s;
             }
-            .run-button {
-                background-color: #4CAF50;
-                color: white;
+            .python-buttons button:hover {
+                background: #f0f0f0;
+                border-color: #555;
             }
-            .run-button:hover {
-                background-color: #45a049;
-            }
-            .test-button {
-                background-color: #2196F3;
-                color: white;
-            }
-            .test-button:hover {
-                background-color: #1e88e5;
+            .run-button, .test-button {
+                /* No custom color, use default */
             }
             .run-button:disabled, .test-button:disabled {
-                background-color: #cccccc;
+                background-color: #eee;
+                color: #aaa;
+                border-color: #ccc;
                 cursor: not-allowed;
             }
         `;
