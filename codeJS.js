@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.2");
+console.log("type 106 github v3.3");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -328,13 +328,23 @@ async function runPythonTests(button, tests) {
     const outputDiv = document.getElementById("o" + instanceID);
     const pyCode = itemInstance.querySelector(".answer").value;
     
+    // Ensure marksDiv exists below outputDiv
+    let marksDiv = document.getElementById("marks-" + instanceID);
+    if (!marksDiv) {
+        marksDiv = document.createElement("div");
+        marksDiv.id = "marks-" + instanceID;
+        marksDiv.className = "marks-summary";
+        outputDiv.parentNode.insertBefore(marksDiv, outputDiv.nextSibling);
+    }
+    marksDiv.textContent = "";
+
     // Clear previous output
     outputDiv.textContent = "";
     
     const pyodide = await pyodideReadyPromise;
     let totalMarks = 0;
     
-    // Set up stdout/stderr redirection
+    // Set up stdout/stderr redirection for first test only
     pyodide.setStdout({
         batched: (s) => outputDiv.textContent += s,
     });
@@ -344,15 +354,19 @@ async function runPythonTests(button, tests) {
     
     try {
         // Run first test immediately
+        let firstTestPassed = false;
         try {
             await pyodide.runPythonAsync(pyCode);
             await pyodide.runPythonAsync(tests[0].test);
             totalMarks++;
+            firstTestPassed = true;
         } catch (error) {
             outputDiv.textContent += `\n${error}`;
         }
+        // Show initial marks after first test
+        marksDiv.textContent = `Marks ${totalMarks}/${tests.length}`;
         
-        // Run remaining tests asynchronously
+        // Run remaining tests asynchronously (do not update outputDiv)
         if (tests.length > 1) {
             const remainingTests = tests.slice(1);
             const promises = remainingTests.map(async (test) => {
@@ -361,15 +375,13 @@ async function runPythonTests(button, tests) {
                     await pyodide.runPythonAsync(test.test);
                     totalMarks++;
                 } catch (error) {
-                    outputDiv.textContent += `\n${error}`;
+                    // Do not update outputDiv, just ignore or log
                 }
+                // Update marksDiv after each test
+                marksDiv.textContent = `Marks ${totalMarks}/${tests.length}`;
             });
-            
             await Promise.all(promises);
         }
-        
-        // Show total marks at the end
-        outputDiv.textContent += `\nMarks ${totalMarks}/${tests.length}`;
     } catch (error) {
         outputDiv.textContent += `\nError running tests: ${error}`;
     }
