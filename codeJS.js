@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.1");
+console.log("type 106 github v3.2");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -164,12 +164,12 @@ function setItem_106(itemInstance, instanceObj) {
             if (testCases) {
                 tests = JSON.parse(testCases);
             } else {
-                // Hardcoded fallback tests for development (sum function with two arguments)
+                // Hardcoded fallback tests for development (sum function with two arguments, Python syntax)
                 tests = [
-                    {id: 1, description: "Sum of 2 and 3", test: "result = sum(2, 3); if (result !== 5) throw new Error('Expected 5, got ' + result);"},
-                    {id: 2, description: "Sum of 0 and 0", test: "result = sum(0, 0); if (result !== 0) throw new Error('Expected 0, got ' + result);"},
-                    {id: 3, description: "Sum of -1 and 1", test: "result = sum(-1, 1); if (result !== 0) throw new Error('Expected 0, got ' + result);"},
-                    {id: 4, description: "Sum of 10 and 15", test: "result = sum(10, 15); if (result !== 25) throw new Error('Expected 25, got ' + result);"}
+                    {id: 1, description: "Sum of 2 and 3", test: "result = sum(2, 3)\nassert result == 5, f'Expected 5, got {result}'"},
+                    {id: 2, description: "Sum of 0 and 0", test: "result = sum(0, 0)\nassert result == 0, f'Expected 0, got {result}'"},
+                    {id: 3, description: "Sum of -1 and 1", test: "result = sum(-1, 1)\nassert result == 0, f'Expected 0, got {result}'"},
+                    {id: 4, description: "Sum of 10 and 15", test: "result = sum(10, 15)\nassert result == 25, f'Expected 25, got {result}'"}
                 ];
             }
             await runPythonTests(this, tests);
