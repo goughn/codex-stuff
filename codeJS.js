@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.3");
+console.log("type 106 github v3.4");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -300,7 +300,7 @@ async function runPython2(button) {
   }
 }
 
-function saveAnswer_105(button) {
+function saveAnswer_106(button) {
     var respObject = {};
     itemInstance = button.closest(".itemInstance");
     pyCode = itemInstance.querySelector(".answer").value;
@@ -365,6 +365,14 @@ async function runPythonTests(button, tests) {
         }
         // Show initial marks after first test
         marksDiv.textContent = `Marks ${totalMarks}/${tests.length}`;
+        
+        // Disable output for remaining tests by setting null handlers
+        pyodide.setStdout({
+            batched: (s) => {}, // Ignore output
+        });
+        pyodide.setStderr({
+            batched: (s) => {}, // Ignore errors
+        });
         
         // Run remaining tests asynchronously (do not update outputDiv)
         if (tests.length > 1) {
