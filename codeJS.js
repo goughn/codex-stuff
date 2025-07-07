@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.4");
+console.log("type 106 github v3.5");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -37,6 +37,9 @@ function setItem_106(itemInstance, instanceObj) {
         type: instanceObj.type,
         keys: Object.keys(instanceObj)
     });
+    
+    // Store instanceObj for later use in testing
+    itemInstance._instanceObj = instanceObj;
     
     // Get the answer element
     const answerElement = itemInstance.querySelector(".answer");
@@ -158,20 +161,10 @@ function setItem_106(itemInstance, instanceObj) {
         this.disabled = true;
         try {
             outputDiv.textContent = "";
-            const problemElement = itemInstance.querySelector(".problem");
-            let tests;
-            const testCases = problemElement.getAttribute("data-tests");
-            if (testCases) {
-                tests = JSON.parse(testCases);
-            } else {
-                // Hardcoded fallback tests for development (sum function with two arguments, Python syntax)
-                tests = [
-                    {id: 1, description: "Sum of 2 and 3", test: "result = sum(2, 3)\nassert result == 5, f'Expected 5, got {result}'"},
-                    {id: 2, description: "Sum of 0 and 0", test: "result = sum(0, 0)\nassert result == 0, f'Expected 0, got {result}'"},
-                    {id: 3, description: "Sum of -1 and 1", test: "result = sum(-1, 1)\nassert result == 0, f'Expected 0, got {result}'"},
-                    {id: 4, description: "Sum of 10 and 15", test: "result = sum(10, 15)\nassert result == 25, f'Expected 25, got {result}'"}
-                ];
-            }
+            
+            // Get tests from evaluation data or fallback
+            let tests = getTestsFromEvaluationData(itemInstance);
+            
             await runPythonTests(this, tests);
         } finally {
             this.textContent = originalText;
@@ -421,3 +414,105 @@ async function runPythonTests(button, tests) {
         document.head.appendChild(style);
     }
 })();
+
+// Function to convert EditionMode evaluation data to test format
+function getTestsFromEvaluationData(itemInstance) {
+    console.log("=== getTestsFromEvaluationData START ===");
+    
+    const instanceObj = itemInstance._instanceObj;
+    let tests = [];
+    
+    // First, try to get from data-tests attribute (existing method)
+    const problemElement = itemInstance.querySelector(".problem");
+    if (problemElement) {
+        const testCases = problemElement.getAttribute("data-tests");
+        if (testCases) {
+            try {
+                tests = JSON.parse(testCases);
+                console.log("Found tests in data-tests attribute:", tests.length);
+                return tests;
+            } catch (e) {
+                console.log("Error parsing data-tests attribute:", e);
+            }
+        }
+    }
+    
+    // Try to get evaluation data from instanceObj
+    if (instanceObj && instanceObj.evaluation) {
+        console.log("Found evaluation data in instanceObj");
+        let evaluationData;
+        
+        try {
+            // Parse evaluation data if it's a string
+            if (typeof instanceObj.evaluation === 'string') {
+                evaluationData = JSON.parse(instanceObj.evaluation);
+            } else {
+                evaluationData = instanceObj.evaluation;
+            }
+            
+            console.log("Parsed evaluation data:", evaluationData);
+            
+            // Convert EditionMode evaluation format to test format
+            if (Array.isArray(evaluationData)) {
+                tests = evaluationData.map((evaluation, index) => {
+                    let testCode = '';
+                    
+                    // Handle different evaluation types
+                    if (evaluation.input && evaluation.output) {
+                        // Build test code that runs the input and checks the output
+                        const input = evaluation.input.trim();
+                        const expectedOutput = evaluation.output.trim();
+                        
+                        // If input contains function calls, use that directly
+                        if (input.includes('(') && input.includes(')')) {
+                            testCode = `
+${input}
+result = locals().get('result', None)
+expected = "${expectedOutput}"
+if str(result).strip() == expected:
+    pass  # Test passed
+else:
+    assert False, f"Expected '{expected}', got '{result}'"`;
+                        } else {
+                            // Simple variable assignment test
+                            testCode = `
+${input}
+expected = "${expectedOutput}"
+assert str(result).strip() == expected, f"Expected '{expected}', got '{result}'"`;
+                        }
+                    } else if (evaluation.input) {
+                        // Just run the input code and assume it contains assertions
+                        testCode = evaluation.input;
+                    } else {
+                        // Skip malformed evaluations
+                        return null;
+                    }
+                    
+                    return {
+                        id: index + 1,
+                        description: evaluation.commentTrue || `Test ${index + 1}`,
+                        test: testCode.trim()
+                    };
+                }).filter(test => test !== null); // Remove null tests
+                
+                console.log("Converted evaluations to tests:", tests.length);
+            }
+        } catch (e) {
+            console.log("Error processing evaluation data:", e);
+        }
+    }
+    
+    // Fallback to hardcoded tests if no evaluation data found
+    if (tests.length === 0) {
+        console.log("No evaluation data found, using fallback tests");
+        tests = [
+            {id: 1, description: "Sum of 2 and 3", test: "result = sum(2, 3)\nassert result == 5, f'Expected 5, got {result}'"},
+            {id: 2, description: "Sum of 0 and 0", test: "result = sum(0, 0)\nassert result == 0, f'Expected 0, got {result}'"},
+            {id: 3, description: "Sum of -1 and 1", test: "result = sum(-1, 1)\nassert result == 0, f'Expected 0, got {result}'"},
+            {id: 4, description: "Sum of 10 and 15", test: "result = sum(10, 15)\nassert result == 25, f'Expected 25, got {result}'"}
+        ];
+    }
+    
+    console.log("=== getTestsFromEvaluationData END ===", tests.length, "tests");
+    return tests;
+}
