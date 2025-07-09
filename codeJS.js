@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.6");
+console.log("type 106 github v3.7");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -36,6 +36,38 @@ function setItem_106(itemInstance, instanceObj) {
         iid: instanceObj.iid,
         type: instanceObj.type,
         keys: Object.keys(instanceObj)
+    });
+    
+    // COMPREHENSIVE DEBUGGING: Log ALL properties of instanceObj
+    console.log("=== FULL INSTANCE OBJECT DEBUG ===");
+    console.log("instanceObj:", instanceObj);
+    console.log("instanceObj keys:", Object.keys(instanceObj));
+    
+    // Check specifically for evaluation-related properties
+    console.log("=== EVALUATION DATA SEARCH ===");
+    console.log("instanceObj.evaluation:", instanceObj.evaluation);
+    console.log("instanceObj.evaluations:", instanceObj.evaluations);
+    console.log("instanceObj.eval:", instanceObj.eval);
+    console.log("instanceObj.tests:", instanceObj.tests);
+    console.log("instanceObj.answer:", instanceObj.answer);
+    console.log("instanceObj.solution:", instanceObj.solution);
+    console.log("instanceObj.content:", instanceObj.content);
+    console.log("instanceObj.itemcontent:", instanceObj.itemcontent);
+    
+    // Log all properties that might contain evaluation data
+    Object.keys(instanceObj).forEach(key => {
+        const value = instanceObj[key];
+        if (typeof value === 'string' && value.includes('evaluation')) {
+            console.log(`Property ${key} contains 'evaluation':`, value);
+        }
+        if (typeof value === 'string' && (value.startsWith('[') || value.startsWith('{'))) {
+            try {
+                const parsed = JSON.parse(value);
+                console.log(`Property ${key} contains JSON:`, parsed);
+            } catch (e) {
+                // Not JSON, ignore
+            }
+        }
     });
     
     // Store instanceObj for later use in testing
@@ -225,6 +257,80 @@ function setItem_106(itemInstance, instanceObj) {
                 border-color: #ccc;
                 cursor: not-allowed;
             }
+            
+            /* Evaluation Status Styles */
+            .evaluation-status {
+                margin: 10px 0;
+                padding: 10px;
+                border-radius: 4px;
+                border: 1px solid #ddd;
+                background: #f9f9f9;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                font-size: 14px;
+            }
+            
+            .status-text {
+                margin-bottom: 8px;
+                font-weight: 500;
+            }
+            
+            .status-success {
+                color: #10b981;
+            }
+            
+            .status-warning {
+                color: #f59e0b;
+            }
+            
+            .status-error {
+                color: #ef4444;
+            }
+            
+            .debug-btn {
+                padding: 4px 8px;
+                font-size: 12px;
+                background: #e5e7eb;
+                border: 1px solid #d1d5db;
+                border-radius: 3px;
+                cursor: pointer;
+                color: #374151;
+            }
+            
+            .debug-btn:hover {
+                background: #d1d5db;
+            }
+            
+            .debug-info {
+                margin-top: 8px;
+                padding: 8px;
+                background: #f3f4f6;
+                border: 1px solid #d1d5db;
+                border-radius: 3px;
+                font-size: 12px;
+            }
+            
+            .debug-info h4 {
+                margin: 0 0 8px 0;
+                font-size: 13px;
+                color: #374151;
+            }
+            
+            .debug-info p {
+                margin: 4px 0;
+                color: #6b7280;
+            }
+            
+            .debug-info pre {
+                margin: 4px 0;
+                padding: 8px;
+                background: #ffffff;
+                border: 1px solid #e5e7eb;
+                border-radius: 3px;
+                font-size: 11px;
+                overflow-x: auto;
+                max-height: 200px;
+                overflow-y: auto;
+            }
         `;
         document.head.appendChild(style);
         console.log("Styles added to document head");
@@ -247,6 +353,284 @@ function setItem_106(itemInstance, instanceObj) {
     });
     
     console.log("=== setItem_106 END ===", new Date().toISOString());
+}
+
+// Function to convert EditionMode evaluation data to test format
+function getTestsFromEvaluationData(itemInstance) {
+    console.log("=== getTestsFromEvaluationData START ===");
+    
+    const instanceObj = itemInstance._instanceObj;
+    let tests = [];
+    let evaluationSource = "none";
+    let debugInfo = {
+        searchedProperties: [],
+        foundData: null,
+        errors: []
+    };
+    
+    // First, try to get from data-tests attribute (existing method)
+    const problemElement = itemInstance.querySelector(".problem");
+    if (problemElement) {
+        const testCases = problemElement.getAttribute("data-tests");
+        if (testCases) {
+            try {
+                tests = JSON.parse(testCases);
+                evaluationSource = "data-tests";
+                console.log("✅ Found tests in data-tests attribute:", tests.length);
+                showEvaluationStatus(itemInstance, evaluationSource, tests.length, tests, null, debugInfo);
+                return tests;
+            } catch (e) {
+                console.log("❌ Error parsing data-tests attribute:", e);
+                debugInfo.errors.push("Error parsing data-tests: " + e.message);
+            }
+        }
+    }
+    
+    // Try to get from data-demo attribute and auto-generate tests
+    const demoElements = itemInstance.querySelectorAll("[data-demo]");
+    if (demoElements.length > 0) {
+        console.log("🔍 Found data-demo elements:", demoElements.length);
+        
+        for (let demoElement of demoElements) {
+            const demoContent = demoElement.getAttribute("data-demo");
+            if (demoContent && demoContent.includes("print(") && demoContent.includes("batuketa(")) {
+                console.log("📝 Found demo content with batuketa function calls");
+                
+                try {
+                    // Extract test cases from demo content
+                    const lines = demoContent.split('\n');
+                    const testLines = lines.filter(line => 
+                        line.trim().startsWith('print(batuketa(') && line.includes('#')
+                    );
+                    
+                    if (testLines.length > 0) {
+                        tests = testLines.map((line, index) => {
+                            // Extract function call and expected result
+                            const printMatch = line.match(/print\((.*?)\)/);
+                            const commentMatch = line.match(/#\s*(.+)/);
+                            
+                            if (printMatch && commentMatch) {
+                                const functionCall = printMatch[1].trim();
+                                const expectedResult = commentMatch[1].trim();
+                                
+                                return {
+                                    id: index + 1,
+                                    description: `Test ${functionCall}`,
+                                    test: `result = ${functionCall}\nassert result == ${expectedResult}, f"Expected ${expectedResult}, got {result}"`
+                                };
+                            }
+                            return null;
+                        }).filter(test => test !== null);
+                        
+                        if (tests.length > 0) {
+                            evaluationSource = "data-demo";
+                            console.log(`✅ Generated ${tests.length} tests from data-demo`);
+                            showEvaluationStatus(itemInstance, evaluationSource, tests.length, tests, null, debugInfo);
+                            return tests;
+                        }
+                    }
+                } catch (e) {
+                    console.log("❌ Error processing data-demo:", e);
+                    debugInfo.errors.push("Error processing data-demo: " + e.message);
+                }
+            }
+        }
+    }
+    
+    // Search for evaluation data in various possible properties
+    const possibleEvalProperties = [
+        'evaluation', 'evaluations', 'eval', 'tests', 
+        'answer', 'solution', 'content', 'itemcontent',
+        'data', 'metadata', 'config', 'settings'
+    ];
+    
+    console.log("🔍 Searching for evaluation data in instanceObj properties...");
+    
+    for (const prop of possibleEvalProperties) {
+        debugInfo.searchedProperties.push(prop);
+        
+        if (instanceObj && instanceObj[prop]) {
+            console.log(`🔍 Checking property '${prop}':`, instanceObj[prop]);
+            
+            let evaluationData = null;
+            
+            try {
+                // Try to parse if it's a string
+                if (typeof instanceObj[prop] === 'string') {
+                    // Check if it looks like JSON
+                    if (instanceObj[prop].trim().startsWith('[') || instanceObj[prop].trim().startsWith('{')) {
+                        evaluationData = JSON.parse(instanceObj[prop]);
+                        console.log(`📝 Parsed JSON from '${prop}':`, evaluationData);
+                    } else {
+                        console.log(`📝 String content in '${prop}':`, instanceObj[prop]);
+                        continue;
+                    }
+                } else if (typeof instanceObj[prop] === 'object') {
+                    evaluationData = instanceObj[prop];
+                    console.log(`📝 Object in '${prop}':`, evaluationData);
+                }
+                
+                // Check if this looks like evaluation data
+                if (evaluationData && Array.isArray(evaluationData)) {
+                    console.log(`✅ Found array in '${prop}' with ${evaluationData.length} items`);
+                    
+                    // Check if array items look like evaluation objects
+                    const hasEvalStructure = evaluationData.some(item => 
+                        item && (item.input || item.test || item.output || item.mark)
+                    );
+                    
+                    if (hasEvalStructure) {
+                        console.log(`✅ Array in '${prop}' looks like evaluation data!`);
+                        debugInfo.foundData = { property: prop, data: evaluationData };
+                        
+                        // Convert to test format
+                        tests = evaluationData.map((evaluation, index) => {
+                            let testCode = '';
+                            
+                            if (evaluation.input && evaluation.output) {
+                                const input = evaluation.input.trim();
+                                const expectedOutput = evaluation.output.trim();
+                                
+                                if (input.includes('(') && input.includes(')')) {
+                                    testCode = `
+${input}
+result = locals().get('result', None)
+expected = "${expectedOutput}"
+if str(result).strip() == expected:
+    pass  # Test passed
+else:
+    assert False, f"Expected '{expected}', got '{result}'"`;
+                                } else {
+                                    testCode = `
+${input}
+expected = "${expectedOutput}"
+assert str(result).strip() == expected, f"Expected '{expected}', got '{result}'"`;
+                                }
+                            } else if (evaluation.input) {
+                                testCode = evaluation.input;
+                            } else if (evaluation.test) {
+                                testCode = evaluation.test;
+                            } else {
+                                return null;
+                            }
+                            
+                            return {
+                                id: index + 1,
+                                description: evaluation.commentTrue || evaluation.description || `Test ${index + 1}`,
+                                test: testCode.trim()
+                            };
+                        }).filter(test => test !== null);
+                        
+                        if (tests.length > 0) {
+                            evaluationSource = `property-${prop}`;
+                            console.log(`✅ Successfully converted ${tests.length} tests from '${prop}'`);
+                            break;
+                        }
+                    }
+                }
+                
+                // Check if it's an object that might contain evaluation data
+                if (evaluationData && typeof evaluationData === 'object' && !Array.isArray(evaluationData)) {
+                    console.log(`🔍 Checking object properties in '${prop}'`);
+                    Object.keys(evaluationData).forEach(subKey => {
+                        console.log(`  - ${subKey}:`, evaluationData[subKey]);
+                    });
+                }
+                
+            } catch (e) {
+                console.log(`❌ Error processing '${prop}':`, e);
+                debugInfo.errors.push(`Error processing ${prop}: ${e.message}`);
+            }
+        } else {
+            console.log(`❌ Property '${prop}' not found or empty`);
+        }
+    }
+    
+    // Show evaluation status with debug info
+    showEvaluationStatus(itemInstance, evaluationSource, tests.length, tests, instanceObj, debugInfo);
+    
+    console.log("=== getTestsFromEvaluationData END ===", tests.length, "tests");
+    return tests;
+}
+
+// Function to show evaluation status and debugging info
+function showEvaluationStatus(itemInstance, source, testCount, tests, rawData, debugInfo) {
+    const instanceID = itemInstance.getAttribute("id");
+    let statusDiv = document.getElementById("eval-status-" + instanceID);
+    
+    if (!statusDiv) {
+        statusDiv = document.createElement("div");
+        statusDiv.id = "eval-status-" + instanceID;
+        statusDiv.className = "evaluation-status";
+        
+        // Insert after the buttons
+        const buttonsContainer = itemInstance.querySelector(".python-buttons");
+        if (buttonsContainer && buttonsContainer.parentNode) {
+            buttonsContainer.parentNode.insertBefore(statusDiv, buttonsContainer.nextSibling);
+        }
+    }
+    
+    let statusText = "";
+    let statusClass = "";
+    
+    if (source.startsWith("property-")) {
+        const propertyName = source.replace("property-", "");
+        statusText = `✅ Tests converted from instanceObj.${propertyName} (${testCount} tests)`;
+        statusClass = "status-success";
+    } else {
+        switch(source) {
+            case "data-tests":
+                statusText = `✅ Tests loaded from data-tests attribute (${testCount} tests)`;
+                statusClass = "status-success";
+                break;
+            case "data-demo":
+                statusText = `✅ Tests generated from data-demo attribute (${testCount} tests)`;
+                statusClass = "status-success";
+                break;
+            case "instanceObj":
+                statusText = `✅ Tests converted from evaluation data (${testCount} tests)`;
+                statusClass = "status-success";
+                break;
+            case "error":
+                statusText = `❌ Error processing evaluation data`;
+                statusClass = "status-error";
+                break;
+            case "none":
+            default:
+                statusText = `⚠️ No evaluation data found - tests will not run`;
+                statusClass = "status-warning";
+                break;
+        }
+    }
+    
+    const debugInfoHtml = debugInfo ? `
+        <p><strong>Searched Properties:</strong> ${debugInfo.searchedProperties.join(", ")}</p>
+        ${debugInfo.foundData ? `<p><strong>Found Data In:</strong> ${debugInfo.foundData.property}</p>` : ''}
+        ${debugInfo.errors.length > 0 ? `<p><strong>Errors:</strong><br>${debugInfo.errors.join('<br>')}</p>` : ''}
+        <p><strong>All instanceObj Keys:</strong> ${rawData ? Object.keys(rawData).join(", ") : 'N/A'}</p>
+    ` : '';
+    
+    statusDiv.innerHTML = `
+        <div class="status-text ${statusClass}">${statusText}</div>
+        <button type="button" class="debug-btn" onclick="toggleEvaluationDebug('${instanceID}')">Debug Info</button>
+        <div id="debug-info-${instanceID}" class="debug-info" style="display: none;">
+            <h4>Debug Information:</h4>
+            <p><strong>Source:</strong> ${source}</p>
+            <p><strong>Test Count:</strong> ${testCount}</p>
+            ${debugInfoHtml}
+            <p><strong>Tests:</strong></p>
+            <pre>${JSON.stringify(tests, null, 2)}</pre>
+            ${rawData ? `<p><strong>Raw instanceObj:</strong></p><pre>${JSON.stringify(rawData, null, 2)}</pre>` : ''}
+        </div>
+    `;
+}
+
+// Function to toggle debug info visibility
+function toggleEvaluationDebug(instanceID) {
+    const debugDiv = document.getElementById("debug-info-" + instanceID);
+    if (debugDiv) {
+        debugDiv.style.display = debugDiv.style.display === "none" ? "block" : "none";
+    }
 }
 
 function obtenerUltimoDivMatplotlib() {
@@ -320,6 +704,12 @@ async function runPythonTests(button, tests) {
     const instanceID = itemInstance.getAttribute("id");
     const outputDiv = document.getElementById("o" + instanceID);
     const pyCode = itemInstance.querySelector(".answer").value;
+    
+    // Check if tests are available
+    if (!tests || tests.length === 0) {
+        outputDiv.textContent = "❌ No tests available to run.\n\nTo add tests:\n1. Use EditionMode to create evaluation data\n2. Or add data-tests attribute to the problem element\n3. Check the Debug Info below for details";
+        return;
+    }
     
     // Ensure marksDiv exists below outputDiv
     let marksDiv = document.getElementById("marks-" + instanceID);
@@ -414,105 +804,3 @@ async function runPythonTests(button, tests) {
         document.head.appendChild(style);
     }
 })();
-
-// Function to convert EditionMode evaluation data to test format
-function getTestsFromEvaluationData(itemInstance) {
-    console.log("=== getTestsFromEvaluationData START ===");
-    
-    const instanceObj = itemInstance._instanceObj;
-    let tests = [];
-    
-    // First, try to get from data-tests attribute (existing method)
-    const problemElement = itemInstance.querySelector(".problem");
-    if (problemElement) {
-        const testCases = problemElement.getAttribute("data-tests");
-        if (testCases) {
-            try {
-                tests = JSON.parse(testCases);
-                console.log("Found tests in data-tests attribute:", tests.length);
-                return tests;
-            } catch (e) {
-                console.log("Error parsing data-tests attribute:", e);
-            }
-        }
-    }
-    
-    // Try to get evaluation data from instanceObj
-    if (instanceObj && instanceObj.evaluation) {
-        console.log("Found evaluation data in instanceObj");
-        let evaluationData;
-        
-        try {
-            // Parse evaluation data if it's a string
-            if (typeof instanceObj.evaluation === 'string') {
-                evaluationData = JSON.parse(instanceObj.evaluation);
-            } else {
-                evaluationData = instanceObj.evaluation;
-            }
-            
-            console.log("Parsed evaluation data:", evaluationData);
-            
-            // Convert EditionMode evaluation format to test format
-            if (Array.isArray(evaluationData)) {
-                tests = evaluationData.map((evaluation, index) => {
-                    let testCode = '';
-                    
-                    // Handle different evaluation types
-                    if (evaluation.input && evaluation.output) {
-                        // Build test code that runs the input and checks the output
-                        const input = evaluation.input.trim();
-                        const expectedOutput = evaluation.output.trim();
-                        
-                        // If input contains function calls, use that directly
-                        if (input.includes('(') && input.includes(')')) {
-                            testCode = `
-${input}
-result = locals().get('result', None)
-expected = "${expectedOutput}"
-if str(result).strip() == expected:
-    pass  # Test passed
-else:
-    assert False, f"Expected '{expected}', got '{result}'"`;
-                        } else {
-                            // Simple variable assignment test
-                            testCode = `
-${input}
-expected = "${expectedOutput}"
-assert str(result).strip() == expected, f"Expected '{expected}', got '{result}'"`;
-                        }
-                    } else if (evaluation.input) {
-                        // Just run the input code and assume it contains assertions
-                        testCode = evaluation.input;
-                    } else {
-                        // Skip malformed evaluations
-                        return null;
-                    }
-                    
-                    return {
-                        id: index + 1,
-                        description: evaluation.commentTrue || `Test ${index + 1}`,
-                        test: testCode.trim()
-                    };
-                }).filter(test => test !== null); // Remove null tests
-                
-                console.log("Converted evaluations to tests:", tests.length);
-            }
-        } catch (e) {
-            console.log("Error processing evaluation data:", e);
-        }
-    }
-    
-    // Fallback to hardcoded tests if no evaluation data found
-    if (tests.length === 0) {
-        console.log("No evaluation data found, using fallback tests");
-        tests = [
-            {id: 1, description: "Sum of 2 and 3", test: "result = sum(2, 3)\nassert result == 5, f'Expected 5, got {result}'"},
-            {id: 2, description: "Sum of 0 and 0", test: "result = sum(0, 0)\nassert result == 0, f'Expected 0, got {result}'"},
-            {id: 3, description: "Sum of -1 and 1", test: "result = sum(-1, 1)\nassert result == 0, f'Expected 0, got {result}'"},
-            {id: 4, description: "Sum of 10 and 15", test: "result = sum(10, 15)\nassert result == 25, f'Expected 25, got {result}'"}
-        ];
-    }
-    
-    console.log("=== getTestsFromEvaluationData END ===", tests.length, "tests");
-    return tests;
-}
