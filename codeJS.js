@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.7");
+console.log("type 106 github v3.8");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -384,55 +384,38 @@ function getTestsFromEvaluationData(itemInstance) {
                 debugInfo.errors.push("Error parsing data-tests: " + e.message);
             }
         }
-    }
-    
-    // Try to get from data-demo attribute and auto-generate tests
-    const demoElements = itemInstance.querySelectorAll("[data-demo]");
-    if (demoElements.length > 0) {
-        console.log("🔍 Found data-demo elements:", demoElements.length);
         
-        for (let demoElement of demoElements) {
-            const demoContent = demoElement.getAttribute("data-demo");
-            if (demoContent && demoContent.includes("print(") && demoContent.includes("batuketa(")) {
-                console.log("📝 Found demo content with batuketa function calls");
+        // Try to get from data-test-cases attribute (new simple format)
+        const testCasesSimple = problemElement.getAttribute("data-test-cases");
+        if (testCasesSimple) {
+            console.log("🔍 Found data-test-cases attribute");
+            
+            try {
+                // Parse format: "function(args):result|function(args):result|..."
+                const testPairs = testCasesSimple.split('|');
                 
-                try {
-                    // Extract test cases from demo content
-                    const lines = demoContent.split('\n');
-                    const testLines = lines.filter(line => 
-                        line.trim().startsWith('print(batuketa(') && line.includes('#')
-                    );
+                tests = testPairs.map((pair, index) => {
+                    const [functionCall, expectedResult] = pair.split(':');
                     
-                    if (testLines.length > 0) {
-                        tests = testLines.map((line, index) => {
-                            // Extract function call and expected result
-                            const printMatch = line.match(/print\((.*?)\)/);
-                            const commentMatch = line.match(/#\s*(.+)/);
-                            
-                            if (printMatch && commentMatch) {
-                                const functionCall = printMatch[1].trim();
-                                const expectedResult = commentMatch[1].trim();
-                                
-                                return {
-                                    id: index + 1,
-                                    description: `Test ${functionCall}`,
-                                    test: `result = ${functionCall}\nassert result == ${expectedResult}, f"Expected ${expectedResult}, got {result}"`
-                                };
-                            }
-                            return null;
-                        }).filter(test => test !== null);
-                        
-                        if (tests.length > 0) {
-                            evaluationSource = "data-demo";
-                            console.log(`✅ Generated ${tests.length} tests from data-demo`);
-                            showEvaluationStatus(itemInstance, evaluationSource, tests.length, tests, null, debugInfo);
-                            return tests;
-                        }
+                    if (functionCall && expectedResult !== undefined) {
+                        return {
+                            id: index + 1,
+                            description: `Test ${functionCall.trim()}`,
+                            test: `result = ${functionCall.trim()}\nassert result == ${expectedResult.trim()}, f"Expected ${expectedResult.trim()}, got {result}"`
+                        };
                     }
-                } catch (e) {
-                    console.log("❌ Error processing data-demo:", e);
-                    debugInfo.errors.push("Error processing data-demo: " + e.message);
+                    return null;
+                }).filter(test => test !== null);
+                
+                if (tests.length > 0) {
+                    evaluationSource = "data-test-cases";
+                    console.log(`✅ Generated ${tests.length} tests from data-test-cases`);
+                    showEvaluationStatus(itemInstance, evaluationSource, tests.length, tests, null, debugInfo);
+                    return tests;
                 }
+            } catch (e) {
+                console.log("❌ Error processing data-test-cases:", e);
+                debugInfo.errors.push("Error processing data-test-cases: " + e.message);
             }
         }
     }
@@ -583,10 +566,11 @@ function showEvaluationStatus(itemInstance, source, testCount, tests, rawData, d
                 statusText = `✅ Tests loaded from data-tests attribute (${testCount} tests)`;
                 statusClass = "status-success";
                 break;
-            case "data-demo":
-                statusText = `✅ Tests generated from data-demo attribute (${testCount} tests)`;
+            case "data-test-cases":
+                statusText = `✅ Tests generated from data-test-cases attribute (${testCount} tests)`;
                 statusClass = "status-success";
                 break;
+
             case "instanceObj":
                 statusText = `✅ Tests converted from evaluation data (${testCount} tests)`;
                 statusClass = "status-success";
