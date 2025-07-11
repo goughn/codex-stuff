@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v3.8");
+console.log("type 106 github v3.9");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -91,19 +91,45 @@ function setItem_106(itemInstance, instanceObj) {
         return;
     }
 
-    // Handle existing answer
-    if (answerElement.value.trim() !== "") {
+    // DEBUGGING: Log initial state of answer element
+    console.log("=== ANSWER ELEMENT INITIAL STATE ===");
+    console.log("answerElement.value:", answerElement.value);
+    console.log("answerElement.innerHTML:", answerElement.innerHTML);
+    console.log("answerElement.textContent:", answerElement.textContent);
+    
+    // Store initial content before clearing
+    const initialContent = answerElement.value.trim();
+    const initialInnerHTML = answerElement.innerHTML.trim();
+    
+    // Clear any pre-filled content that might come from data-demo or other sources
+    // Force clear both value and innerHTML to ensure clean start
+    console.log("Clearing answer element to ensure clean start...");
+    answerElement.value = "";
+    answerElement.innerHTML = "";
+    answerElement.textContent = "";
+    
+    // Handle existing answer (only if there was a legitimate saved answer)
+    if (initialContent !== "" && initialContent.startsWith("{")) {
         try {
-            const resp = JSON.parse(answerElement.value);
+            const resp = JSON.parse(initialContent);
             answerElement.value = resp.code;
-            console.log("Restored previous answer:", {
+            console.log("Restored previous saved answer:", {
                 codeLength: resp.code.length,
                 outputLength: resp.output?.length
             });
         } catch (e) {
-            console.log("Error parsing answer:", e);
+            console.log("Error parsing saved answer, keeping clean:", e);
+            answerElement.value = "";
         }
+    } else if (initialContent !== "" || initialInnerHTML !== "") {
+        console.log("Found non-JSON content, clearing:", {
+            value: initialContent.substring(0, 100),
+            innerHTML: initialInnerHTML.substring(0, 100)
+        });
+        answerElement.value = "";
     }
+    
+    console.log("Final answer element state:", answerElement.value);
     
     // Create output div
     const itemid = itemInstance.id;
@@ -744,18 +770,18 @@ async function runPythonTests(button, tests) {
         // Run remaining tests asynchronously (do not update outputDiv)
         if (tests.length > 1) {
             const remainingTests = tests.slice(1);
-            const promises = remainingTests.map(async (test) => {
+            for (const test of remainingTests) {
                 try {
                     await pyodide.runPythonAsync(pyCode);
                     await pyodide.runPythonAsync(test.test);
                     totalMarks++;
                 } catch (error) {
                     // Do not update outputDiv, just ignore or log
+                    console.log(`Test ${test.id} failed:`, error);
                 }
                 // Update marksDiv after each test
                 marksDiv.textContent = `Marks ${totalMarks}/${tests.length}`;
-            });
-            await Promise.all(promises);
+            }
         }
     } catch (error) {
         outputDiv.textContent += `\nError running tests: ${error}`;
