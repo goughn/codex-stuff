@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.1");
+console.log("type 106 github v4.2");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -315,6 +315,10 @@ function saveAnswer_106(button) {
         respObject.totalTests = totalTests;
         respObject.percentage = Math.round((totalMarks / totalTests) * 100);
         respObject.evaluationCompleted = true;
+    } else {
+        // No tests run yet
+        respObject.evaluationCompleted = false;
+        respObject.message = "Tests not run - click 'Run Tests' first for evaluation";
     }
     
     // Store the response in the answer element
@@ -323,6 +327,7 @@ function saveAnswer_106(button) {
     
     return JSON.stringify(respObject);
 }
+
 
 async function runPythonTests(button, tests) {
     const itemInstance = button.closest(".itemInstance");
