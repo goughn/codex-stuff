@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.2");
+console.log("type 106 github v4.3");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -321,10 +321,8 @@ function saveAnswer_106(button) {
         respObject.message = "Tests not run - click 'Run Tests' first for evaluation";
     }
     
-    // Store the response in the answer element
-    answerElement = itemInstance.querySelector(".answer");
-    answerElement.value = JSON.stringify(respObject);
-    
+    // Return the response object as JSON for the system to handle
+    // DO NOT modify the textarea - keep user's code intact
     return JSON.stringify(respObject);
 }
 
