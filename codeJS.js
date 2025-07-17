@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.4");
+console.log("type 106 github v4.5");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -293,6 +293,44 @@ async function runPython2(button) {
   }
 }
 
+function displayMarksForSend(itemInstance, totalMarks, totalTests) {
+    // Display marks immediately when Send button is clicked
+    const instanceID = itemInstance.getAttribute("id");
+    const outputDiv = document.getElementById("o" + instanceID);
+    
+    // Create or update marks display
+    let marksDiv = document.getElementById("marks-" + instanceID);
+    if (!marksDiv) {
+        marksDiv = document.createElement("div");
+        marksDiv.id = "marks-" + instanceID;
+        marksDiv.className = "marks-summary";
+        marksDiv.style.cssText = `
+            margin: 10px 0;
+            padding: 15px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #155724;
+            font-size: 16px;
+        `;
+        
+        // Insert after the output div
+        if (outputDiv && outputDiv.parentNode) {
+            outputDiv.parentNode.insertBefore(marksDiv, outputDiv.nextSibling);
+        }
+    }
+    
+    // Show the final marks
+    const percentage = Math.round((totalMarks / totalTests) * 100);
+    marksDiv.innerHTML = `
+        <div>✅ <strong>Evaluation Complete!</strong></div>
+        <div>Score: <strong>${totalMarks}/${totalTests}</strong> tests passed (${percentage}%)</div>
+    `;
+    
+    console.log(`Marks displayed: ${totalMarks}/${totalTests} (${percentage}%)`);
+}
+
 function saveAnswer_106(button) {
     var respObject = {};
     itemInstance = button.closest(".itemInstance");
@@ -315,6 +353,9 @@ function saveAnswer_106(button) {
         respObject.totalTests = totalTests;
         respObject.percentage = Math.round((totalMarks / totalTests) * 100);
         respObject.evaluationCompleted = true;
+        
+        // Display marks immediately when Send is clicked
+        displayMarksForSend(itemInstance, totalMarks, totalTests);
     } else {
         // No tests run yet
         respObject.evaluationCompleted = false;
