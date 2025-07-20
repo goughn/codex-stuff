@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.8");
+console.log("type 106 github v4.9");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -109,46 +109,67 @@ function setItem_106(itemInstance, instanceObj) {
     answerElement.textContent = "";
     
     // Handle existing answer (only if there was a legitimate saved answer)
+    console.log("🔍 Checking for saved evaluation data:", {
+        initialContent: initialContent.substring(0, 200),
+        startsWithBrace: initialContent.startsWith("{"),
+        length: initialContent.length
+    });
+    
     if (initialContent !== "" && initialContent.startsWith("{")) {
         try {
             const resp = JSON.parse(initialContent);
-            answerElement.value = resp.code;
-            console.log("Restored previous saved answer:", {
-                codeLength: resp.code.length,
-                outputLength: resp.output?.length,
+            
+            // Set the code in the textarea
+            if (resp.code) {
+                answerElement.value = resp.code;
+            }
+            
+            console.log("📋 Parsed saved answer:", {
+                hasCode: !!resp.code,
+                codeLength: resp.code?.length || 0,
+                hasOutput: !!resp.output,
+                outputLength: resp.output?.length || 0,
                 hasMarks: resp.marks !== undefined,
                 marks: resp.marks,
-                maxPossibleMarks: resp.maxPossibleMarks
+                maxPossibleMarks: resp.maxPossibleMarks,
+                totalTests: resp.totalTests,
+                evaluationCompleted: resp.evaluationCompleted,
+                percentage: resp.percentage
             });
             
             // If there are previous marks, display them and restore test results
-            if (resp.evaluationCompleted && resp.marks !== undefined) {
-                console.log("Restoring previous evaluation results");
+            if (resp.marks !== undefined && resp.marks !== null) {
+                console.log("✅ Restoring previous evaluation results with marks:", resp.marks);
                 
                 // Restore the test results data
                 itemInstance._testResults = {
                     totalMarks: resp.marks,
-                    totalTests: resp.totalTests || 0,
+                    totalTests: resp.totalTests || 1,
                     maxPossibleMarks: resp.maxPossibleMarks || resp.marks,
                     testsRun: true
                 };
                 
-                // Display the marks immediately
+                // Display the marks immediately after DOM setup completes
                 setTimeout(() => {
+                    console.log("🎯 Displaying restored marks");
                     displayMarksForSend(itemInstance, resp.marks, resp.maxPossibleMarks || resp.marks);
-                }, 100); // Small delay to ensure DOM is ready
+                }, 200); // Slightly longer delay to ensure DOM is ready
+            } else {
+                console.log("❌ No marks found in saved data");
             }
             
         } catch (e) {
-            console.log("Error parsing saved answer, keeping clean:", e);
+            console.log("❌ Error parsing saved answer:", e);
             answerElement.value = "";
         }
-    } else if (initialContent !== "" || initialInnerHTML !== "") {
-        console.log("Found non-JSON content, clearing:", {
+    } else if (initialContent !== "") {
+        console.log("📝 Found non-JSON content:", {
             value: initialContent.substring(0, 100),
             innerHTML: initialInnerHTML.substring(0, 100)
         });
-        answerElement.value = "";
+        
+        // Check if it's just plain code (not JSON) - restore as code
+        answerElement.value = initialContent;
     }
     
     console.log("Final answer element state:", answerElement.value);
@@ -924,9 +945,16 @@ async function runPython2(button) {
 }
 
 function displayMarksForSend(itemInstance, totalMarks, maxPossibleMarks) {
-    // Display marks immediately when Send button is clicked
+    // Display marks immediately when Send button is clicked or when restoring from saved data
     const instanceID = itemInstance.getAttribute("id");
     const outputDiv = document.getElementById("o" + instanceID);
+    
+    console.log("🎯 displayMarksForSend called:", {
+        instanceID,
+        totalMarks,
+        maxPossibleMarks,
+        outputDivExists: !!outputDiv
+    });
     
     // Create or update marks display
     let marksDiv = document.getElementById("marks-" + instanceID);
@@ -943,12 +971,26 @@ function displayMarksForSend(itemInstance, totalMarks, maxPossibleMarks) {
             font-weight: bold;
             color: #155724;
             font-size: 16px;
+            clear: both;
         `;
         
-        // Insert after the output div
+        // Insert after the output div if it exists, otherwise after the buttons
         if (outputDiv && outputDiv.parentNode) {
             outputDiv.parentNode.insertBefore(marksDiv, outputDiv.nextSibling);
+        } else {
+            // Fallback: insert after buttons container
+            const buttonsContainer = itemInstance.querySelector(".python-buttons");
+            if (buttonsContainer && buttonsContainer.parentNode) {
+                buttonsContainer.parentNode.insertBefore(marksDiv, buttonsContainer.nextSibling);
+            } else {
+                // Last resort: append to item instance
+                itemInstance.appendChild(marksDiv);
+            }
         }
+        
+        console.log("✅ Created new marks div:", marksDiv.id);
+    } else {
+        console.log("♻️ Using existing marks div:", marksDiv.id);
     }
     
     // Show the final marks
@@ -958,7 +1000,10 @@ function displayMarksForSend(itemInstance, totalMarks, maxPossibleMarks) {
         <div>Score: <strong>${totalMarks}/${maxPossibleMarks}</strong> marks (${percentage}%)</div>
     `;
     
-    console.log(`Marks displayed: ${totalMarks}/${maxPossibleMarks} (${percentage}%)`);
+    // Make sure it's visible
+    marksDiv.style.display = "block";
+    
+    console.log(`🎉 Marks displayed: ${totalMarks}/${maxPossibleMarks} (${percentage}%)`);
 }
 
 function saveAnswer_106(button) {
@@ -1011,15 +1056,7 @@ async function runPythonTests(button, tests) {
         return;
     }
     
-    // Ensure marksDiv exists below outputDiv
-    let marksDiv = document.getElementById("marks-" + instanceID);
-    if (!marksDiv) {
-        marksDiv = document.createElement("div");
-        marksDiv.id = "marks-" + instanceID;
-        marksDiv.className = "marks-summary";
-        outputDiv.parentNode.insertBefore(marksDiv, outputDiv.nextSibling);
-    }
-    marksDiv.textContent = "";
+    // Don't show marks during Run Tests - only during Send
 
     // Clear previous output
     outputDiv.textContent = "";
@@ -1051,8 +1088,7 @@ async function runPythonTests(button, tests) {
         } catch (error) {
             outputDiv.textContent += `\n${error}`;
         }
-        // Show initial marks after first test
-        marksDiv.textContent = `Marks ${totalMarks}/${maxPossibleMarks}`;
+        // Don't show marks - just continue testing silently
         
         // Disable output for remaining tests by setting null handlers
         pyodide.setStdout({
@@ -1075,8 +1111,7 @@ async function runPythonTests(button, tests) {
                     // Do not update outputDiv, just ignore or log
                     console.log(`Test ${test.id} failed:`, error);
                 }
-                // Update marksDiv after each test
-                marksDiv.textContent = `Marks ${totalMarks}/${maxPossibleMarks}`;
+                // Don't show marks during testing - only store results
             }
         }
     } catch (error) {
@@ -1090,6 +1125,9 @@ async function runPythonTests(button, tests) {
         maxPossibleMarks: maxPossibleMarks,
         testsRun: true
     };
+    
+    // Show completion message without revealing marks
+    outputDiv.textContent += `\n\n✅ Tests completed successfully!\n📝 Click 'Send' to submit your answer and see your score.`;
 }
 
 // Add styles only if they don't exist
