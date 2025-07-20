@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.6");
+console.log("type 106 github v4.7");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -971,19 +971,9 @@ function saveAnswer_106(button) {
         respObject.message = "Tests not run - click 'Run Tests' first for evaluation";
     }
     
-    // Store the response in the answer element temporarily for Send button to read
-    answerElement = itemInstance.querySelector(".answer");
-    const originalCode = answerElement.value; // Store original user code
-    
-    // Temporarily put JSON in textarea for Send button to read
-    answerElement.value = JSON.stringify(respObject);
-    
-    // Use requestAnimationFrame to restore original code immediately after
-    requestAnimationFrame(() => {
-        answerElement.value = originalCode;
-        console.log("Restored original code to textarea");
-    });
-    
+    // Don't modify the textarea - saveSendAnswer calls this function directly
+    // and uses the return value. The textarea should only contain user's code.
+    console.log("Returning evaluation data:", respObject);
     return JSON.stringify(respObject);
 }
 
