@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.7");
+console.log("type 106 github v4.8");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -115,8 +115,30 @@ function setItem_106(itemInstance, instanceObj) {
             answerElement.value = resp.code;
             console.log("Restored previous saved answer:", {
                 codeLength: resp.code.length,
-                outputLength: resp.output?.length
+                outputLength: resp.output?.length,
+                hasMarks: resp.marks !== undefined,
+                marks: resp.marks,
+                maxPossibleMarks: resp.maxPossibleMarks
             });
+            
+            // If there are previous marks, display them and restore test results
+            if (resp.evaluationCompleted && resp.marks !== undefined) {
+                console.log("Restoring previous evaluation results");
+                
+                // Restore the test results data
+                itemInstance._testResults = {
+                    totalMarks: resp.marks,
+                    totalTests: resp.totalTests || 0,
+                    maxPossibleMarks: resp.maxPossibleMarks || resp.marks,
+                    testsRun: true
+                };
+                
+                // Display the marks immediately
+                setTimeout(() => {
+                    displayMarksForSend(itemInstance, resp.marks, resp.maxPossibleMarks || resp.marks);
+                }, 100); // Small delay to ensure DOM is ready
+            }
+            
         } catch (e) {
             console.log("Error parsing saved answer, keeping clean:", e);
             answerElement.value = "";
