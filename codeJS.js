@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.8");
+console.log("type 106 github v4.92");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
