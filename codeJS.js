@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.92");
+console.log("type 106 github v4.93");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -38,6 +38,31 @@ function setItem_106(itemInstance, instanceObj) {
         keys: Object.keys(instanceObj)
     });
     
+    // DETAILED DEBUGGING: Compare with NotebookInstance_Pyodide expectations
+    console.log("=== EVALUATION DATA DEBUGGING ===");
+    console.log("🔍 FULL instanceObj:", instanceObj);
+    console.log("🔍 instanceObj.evaluation (raw):", instanceObj.evaluation);
+    console.log("🔍 instanceObj.evaluation type:", typeof instanceObj.evaluation);
+    
+    // Check if evaluation exists but is in a different format
+    Object.keys(instanceObj).forEach(key => {
+        const value = instanceObj[key];
+        console.log(`🔍 Property ${key}:`, value);
+        
+        // Try to parse if it looks like JSON
+        if (typeof value === 'string') {
+            if (value.includes('input') || value.includes('output') || value.includes('mark') || value.includes('evaluation')) {
+                console.log(`🎯 Property ${key} might contain evaluation data:`, value);
+                try {
+                    const parsed = JSON.parse(value);
+                    console.log(`🎯 Parsed ${key}:`, parsed);
+                } catch (e) {
+                    console.log(`❌ Could not parse ${key} as JSON:`, e.message);
+                }
+            }
+        }
+    });
+    
     // COMPREHENSIVE DEBUGGING: Log ALL properties of instanceObj
     console.log("=== FULL INSTANCE OBJECT DEBUG ===");
     console.log("instanceObj:", instanceObj);
@@ -72,6 +97,38 @@ function setItem_106(itemInstance, instanceObj) {
     
     // Store instanceObj for later use in testing
     itemInstance._instanceObj = instanceObj;
+    
+    // Additional debugging: Check if this matches the EditionMode format
+    console.log("=== COMPARING TO EDITIONMODE FORMAT ===");
+    console.log("🔍 Expected EditionMode evaluation format:");
+    console.log("   - Array of objects with: {input, output, mark, commentTrue, commentFalse}");
+    console.log("   - Method name: evalPython");  
+    console.log("   - Return type: return");
+    console.log("🔍 Current instanceObj properties check:");
+    
+    // Look for properties that might contain evaluation in EditionMode format
+    const potentialEvalProps = ['evaluation', 'evaluations', 'tests', 'testCases'];
+    potentialEvalProps.forEach(prop => {
+        if (instanceObj[prop]) {
+            console.log(`✅ Found ${prop}:`, instanceObj[prop]);
+            if (typeof instanceObj[prop] === 'string') {
+                try {
+                    const parsed = JSON.parse(instanceObj[prop]);
+                    console.log(`✅ Parsed ${prop}:`, parsed);
+                    if (Array.isArray(parsed)) {
+                        console.log(`✅ ${prop} is array with ${parsed.length} items`);
+                        parsed.forEach((item, index) => {
+                            console.log(`   Item ${index}:`, item);
+                        });
+                    }
+                } catch (e) {
+                    console.log(`❌ Could not parse ${prop}:`, e.message);
+                }
+            }
+        } else {
+            console.log(`❌ Missing ${prop}`);
+        }
+    });
     
     // Get the answer element
     const answerElement = itemInstance.querySelector(".answer");
