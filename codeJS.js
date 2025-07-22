@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.96");
+console.log("type 106 github v4.97");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -1272,8 +1272,26 @@ function getTestsFromEvaluationData(itemInstance) {
                 console.log(`🔍 Found evaluation data in instanceObj.${prop}`);
                 let evaluationData;
                 
-                try {
-                    // Parse evaluation data if it's a string
+                                try {
+                    // Check if this is HTML content that needs special parsing
+                    if (typeof instanceObj[prop] === 'string' && instanceObj[prop].trim().startsWith('<')) {
+                        console.log(`🔍 Property ${prop} contains HTML, using HTML parser...`);
+                        debugInfo.push(`Property ${prop} contains HTML content`);
+                        
+                        // Use HTML parsing for itemcontent and similar HTML properties
+                        tests = parseEvaluationFromHTML(instanceObj[prop], debugInfo);
+                        
+                        if (tests.length > 0) {
+                            console.log("✅ Successfully parsed evaluation from HTML property:", tests.length);
+                            statusMessage = `✅ Tests extracted from instanceObj.${prop} HTML (${tests.length} tests)`;
+                            return tests;
+                        }
+                        
+                        // If HTML parsing didn't work, continue to next property
+                        continue;
+                    }
+                    
+                    // Parse evaluation data if it's a string (non-HTML)
                     if (typeof instanceObj[prop] === 'string') {
                         evaluationData = JSON.parse(instanceObj[prop]);
                     } else {
