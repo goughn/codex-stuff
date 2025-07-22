@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.94");
+console.log("type 106 github v4.95");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -670,7 +670,467 @@ function showServerFixNotification(itemInstance) {
     }
 }
 
-// Function to convert EditionMode evaluation data to test format (Enhanced version from clonedex)
+// Function to parse evaluation data from HTML content (BASETYPE 19 FIX)
+function parseEvaluationFromHTML(htmlContent, debugInfo) {
+    const tests = [];
+    debugInfo.push("🔍 BASETYPE 19: Starting HTML evaluation parsing...");
+    
+    try {
+        // Method 1: Look for EditionMode-style evaluation data in HTML comments or script tags
+        const evalCommentMatch = htmlContent.match(/<!--\s*EVALUATION:\s*(\[.*?\])\s*-->/s);
+        if (evalCommentMatch) {
+            try {
+                const evaluationData = JSON.parse(evalCommentMatch[1]);
+                debugInfo.push(`✅ Found evaluation in HTML comment: ${evaluationData.length} items`);
+                return convertEditionModeToTests(evaluationData, debugInfo);
+            } catch (e) {
+                debugInfo.push(`❌ Error parsing evaluation comment: ${e.message}`);
+            }
+        }
+        
+        // Method 2: Look for evaluation data in script tags
+        const scriptMatches = htmlContent.match(/<script[^>]*>(.*?)<\/script>/gs);
+        if (scriptMatches) {
+            for (const scriptContent of scriptMatches) {
+                const evalMatch = scriptContent.match(/evaluation['"]\s*:\s*['"]([^'"]+)['"]/);
+                if (evalMatch) {
+                    try {
+                        const evalData = JSON.parse(evalMatch[1].replace(/\\"/g, '"'));
+                        debugInfo.push(`✅ Found evaluation in script tag: ${evalData.length} items`);
+                        return convertEditionModeToTests(evalData, debugInfo);
+                    } catch (e) {
+                        debugInfo.push(`❌ Error parsing script evaluation: ${e.message}`);
+                    }
+                }
+            }
+        }
+        
+        // Method 3: Parse HTML tables that might contain evaluation data
+        const tableMatches = htmlContent.match(/<table[^>]*>(.*?)<\/table>/gs);
+        if (tableMatches) {
+            for (const tableContent of tableMatches) {
+                const tests = parseEvaluationTable(tableContent, debugInfo);
+                if (tests.length > 0) {
+                    debugInfo.push(`✅ Found evaluation in HTML table: ${tests.length} tests`);
+                    return tests;
+                }
+            }
+        }
+        
+        // Method 4: Look for evaluation patterns in div elements
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        // Check for elements with evaluation-related classes or data attributes
+        const evalElements = tempDiv.querySelectorAll('[class*="eval"], [class*="test"], [data-eval], [data-test]');
+        if (evalElements.length > 0) {
+            debugInfo.push(`🎯 Found ${evalElements.length} elements with evaluation attributes`);
+            
+            for (const element of evalElements) {
+                const evalData = element.getAttribute('data-eval') || element.getAttribute('data-test');
+                if (evalData) {
+                    try {
+                        const parsed = JSON.parse(evalData);
+                        if (Array.isArray(parsed)) {
+                            debugInfo.push(`✅ Found evaluation in element attribute: ${parsed.length} items`);
+                            return convertEditionModeToTests(parsed, debugInfo);
+                        }
+                    } catch (e) {
+                        debugInfo.push(`❌ Error parsing element evaluation: ${e.message}`);
+                    }
+                }
+            }
+        }
+        
+        // Method 5: Extract function examples from text content and create tests
+        const functionExamples = extractFunctionExamples(htmlContent, debugInfo);
+        if (functionExamples.length > 0) {
+            debugInfo.push(`✅ Created tests from function examples: ${functionExamples.length} tests`);
+            return functionExamples;
+        }
+        
+        // Method 6: Look for EditionMode evaluation format in HTML text
+        const evaluationMatches = htmlContent.match(/input['"]\s*:\s*['"]([^'"]+)['"][^}]*output['"]\s*:\s*['"]([^'"]+)['"]/g);
+        if (evaluationMatches) {
+            const extractedTests = [];
+            let testId = 1;
+            
+            for (const match of evaluationMatches) {
+                const inputMatch = match.match(/input['"]\s*:\s*['"]([^'"]+)['"]/);
+                const outputMatch = match.match(/output['"]\s*:\s*['"]([^'"]+)['"]/);
+                
+                if (inputMatch && outputMatch) {
+                    const input = inputMatch[1];
+                    const output = outputMatch[1];
+                    
+                    extractedTests.push({
+                        id: testId++,
+                        description: `Test: ${input}`,
+                        test: `${input}\nassert str(result).strip() == "${output}", f"Expected '${output}', got '{result}'"`
+                    });
+                }
+            }
+            
+            if (extractedTests.length > 0) {
+                debugInfo.push(`✅ Created tests from evaluation text patterns: ${extractedTests.length} tests`);
+                return extractedTests;
+            }
+        }
+        
+        // Method 7: Parse embedded evaluation data from HTML elements (handles the "<figure st..." error)
+        const tests = parseEmbeddedEvaluationData(htmlContent, debugInfo);
+        if (tests.length > 0) {
+            debugInfo.push(`✅ Found embedded evaluation data: ${tests.length} tests`);
+            return tests;
+        }
+        
+        debugInfo.push("❌ No evaluation data found in HTML content");
+        
+    } catch (e) {
+        debugInfo.push(`❌ Error in HTML evaluation parsing: ${e.message}`);
+        console.log("Error parsing HTML evaluation:", e);
+    }
+    
+    return tests;
+}
+
+// Helper function to parse evaluation from HTML tables
+function parseEvaluationTable(tableContent, debugInfo) {
+    const tests = [];
+    
+    try {
+        // Look for table rows with Input/Output columns
+        const rowMatches = tableContent.match(/<tr[^>]*>(.*?)<\/tr>/gs);
+        if (rowMatches) {
+            let testId = 1;
+            
+            for (const row of rowMatches) {
+                const cellMatches = row.match(/<td[^>]*>(.*?)<\/td>/gs);
+                if (cellMatches && cellMatches.length >= 2) {
+                    // Extract text content from cells
+                    const input = cellMatches[0].replace(/<[^>]*>/g, '').trim();
+                    const output = cellMatches[1].replace(/<[^>]*>/g, '').trim();
+                    
+                    // Skip header rows
+                    if (input.toLowerCase().includes('input') || output.toLowerCase().includes('output')) {
+                        continue;
+                    }
+                    
+                    if (input && output) {
+                        tests.push({
+                            id: testId++,
+                            description: `Test: ${input}`,
+                            test: `${input}\nassert str(result).strip() == "${output}", f"Expected '${output}', got '{result}'"`
+                        });
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        debugInfo.push(`❌ Error parsing table: ${e.message}`);
+    }
+    
+    return tests;
+}
+
+// Helper function to extract function examples from text and create tests
+function extractFunctionExamples(htmlContent, debugInfo) {
+    const tests = [];
+    
+    try {
+        // Remove HTML tags for text analysis
+        const textContent = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+        
+        // Pattern 1: function_name(args) → result
+        const arrowPattern = /(\w+)\s*\(\s*([^)]*)\s*\)\s*[→->]\s*([^\s,;.]+)/g;
+        let match;
+        let testId = 1;
+        
+        while ((match = arrowPattern.exec(textContent)) !== null) {
+            const [fullMatch, functionName, args, expectedResult] = match;
+            
+            // Clean up the expected result
+            const cleanResult = expectedResult.trim().replace(/['"]/g, '');
+            
+            // Create test code
+            let testCode;
+            if (args.trim() === '') {
+                testCode = `result = ${functionName}()\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`;
+            } else {
+                testCode = `result = ${functionName}(${args})\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`;
+            }
+            
+            tests.push({
+                id: testId++,
+                description: `Test: ${functionName}(${args}) → ${cleanResult}`,
+                test: testCode
+            });
+            
+            debugInfo.push(`🎯 Extracted example: ${functionName}(${args}) → ${cleanResult}`);
+        }
+        
+        // Pattern 2: function_name(args) should return result
+        const shouldReturnPattern = /(\w+)\s*\(\s*([^)]*)\s*\)\s*should\s+return\s+([^\s,;.]+)/gi;
+        
+        while ((match = shouldReturnPattern.exec(textContent)) !== null) {
+            const [fullMatch, functionName, args, expectedResult] = match;
+            const cleanResult = expectedResult.trim().replace(/['"]/g, '');
+            
+            let testCode;
+            if (args.trim() === '') {
+                testCode = `result = ${functionName}()\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`;
+            } else {
+                testCode = `result = ${functionName}(${args})\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`;
+            }
+            
+            tests.push({
+                id: testId++,
+                description: `Test: ${functionName}(${args}) should return ${cleanResult}`,
+                test: testCode
+            });
+            
+            debugInfo.push(`🎯 Extracted "should return": ${functionName}(${args}) → ${cleanResult}`);
+        }
+        
+        // Pattern 3: Example: function_name(args) returns result
+        const examplePattern = /example[:\s]+(\w+)\s*\(\s*([^)]*)\s*\)\s*(?:returns?|gives?|outputs?)\s*([^\s,;.]+)/gi;
+        
+        while ((match = examplePattern.exec(textContent)) !== null) {
+            const [fullMatch, functionName, args, expectedResult] = match;
+            const cleanResult = expectedResult.trim().replace(/['"]/g, '');
+            
+            let testCode;
+            if (args.trim() === '') {
+                testCode = `result = ${functionName}()\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`;
+            } else {
+                testCode = `result = ${functionName}(${args})\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`;
+            }
+            
+            tests.push({
+                id: testId++,
+                description: `Example: ${functionName}(${args}) → ${cleanResult}`,
+                test: testCode
+            });
+            
+            debugInfo.push(`🎯 Extracted example: ${functionName}(${args}) → ${cleanResult}`);
+        }
+        
+    } catch (e) {
+        debugInfo.push(`❌ Error extracting function examples: ${e.message}`);
+    }
+    
+    return tests;
+}
+
+// Helper function to convert EditionMode evaluation format to test format
+function convertEditionModeToTests(evaluationData, debugInfo) {
+    const tests = [];
+    
+    try {
+        if (Array.isArray(evaluationData)) {
+            evaluationData.forEach((evaluation, index) => {
+                if (evaluation.input && evaluation.output) {
+                    const input = evaluation.input.trim();
+                    const expectedOutput = evaluation.output.trim();
+                    
+                    let testCode;
+                    if (input.includes('(') && input.includes(')')) {
+                        // Function call
+                        testCode = `${input}\nassert str(result).strip() == "${expectedOutput}", f"Expected '${expectedOutput}', got '{result}'"`;
+                    } else {
+                        // Direct code execution
+                        testCode = `${input}\nassert str(result).strip() == "${expectedOutput}", f"Expected '${expectedOutput}', got '{result}'"`;
+                    }
+                    
+                    tests.push({
+                        id: index + 1,
+                        description: evaluation.commentTrue || `Test ${index + 1}: ${input}`,
+                        test: testCode,
+                        mark: evaluation.mark || 1
+                    });
+                    
+                    debugInfo.push(`✅ Converted evaluation ${index + 1}: ${input} → ${expectedOutput}`);
+                }
+            });
+        }
+    } catch (e) {
+        debugInfo.push(`❌ Error converting EditionMode evaluation: ${e.message}`);
+    }
+    
+    return tests;
+}
+
+// Helper function to parse embedded evaluation data from HTML elements (handles specific basetype 19 format)
+function parseEmbeddedEvaluationData(htmlContent, debugInfo) {
+    const tests = [];
+    
+    try {
+        debugInfo.push("🔍 Method 7: Parsing embedded evaluation data...");
+        
+        // Create a temporary DOM to parse HTML safely
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
+        
+        // Look for figure elements, div elements, or any elements that might contain evaluation data
+        const allElements = tempDiv.querySelectorAll('*');
+        
+        for (const element of allElements) {
+            // Check text content for evaluation patterns
+            const textContent = element.textContent || '';
+            const innerHTML = element.innerHTML || '';
+            
+            // Pattern 1: Look for JSON-like evaluation data in text content
+            const jsonPattern = /\[\s*\{[^}]*["']input["'][^}]*["']output["'][^}]*\}\s*\]/g;
+            const jsonMatch = textContent.match(jsonPattern);
+            
+            if (jsonMatch) {
+                for (const match of jsonMatch) {
+                    try {
+                        // Clean up the match and try to parse as JSON
+                        const cleanMatch = match.replace(/'/g, '"').replace(/\s+/g, ' ');
+                        const evalData = JSON.parse(cleanMatch);
+                        
+                        if (Array.isArray(evalData)) {
+                            const convertedTests = convertEditionModeToTests(evalData, debugInfo);
+                            if (convertedTests.length > 0) {
+                                debugInfo.push(`✅ Found JSON evaluation in element: ${convertedTests.length} tests`);
+                                return convertedTests;
+                            }
+                        }
+                    } catch (e) {
+                        debugInfo.push(`❌ Error parsing JSON evaluation: ${e.message}`);
+                    }
+                }
+            }
+            
+            // Pattern 2: Look for individual input/output pairs in element content
+            if (textContent.includes('input') && textContent.includes('output')) {
+                const inputOutputTests = extractInputOutputPairs(textContent, debugInfo);
+                if (inputOutputTests.length > 0) {
+                    tests.push(...inputOutputTests);
+                }
+            }
+            
+            // Pattern 3: Check data attributes for evaluation info
+            for (const attr of element.attributes) {
+                if (attr.name.includes('eval') || attr.name.includes('test')) {
+                    try {
+                        const attrValue = attr.value;
+                        if (attrValue.startsWith('[') || attrValue.startsWith('{')) {
+                            const parsed = JSON.parse(attrValue);
+                            const convertedTests = convertEditionModeToTests(Array.isArray(parsed) ? parsed : [parsed], debugInfo);
+                            if (convertedTests.length > 0) {
+                                debugInfo.push(`✅ Found evaluation in attribute ${attr.name}: ${convertedTests.length} tests`);
+                                return convertedTests;
+                            }
+                        }
+                    } catch (e) {
+                        debugInfo.push(`❌ Error parsing attribute ${attr.name}: ${e.message}`);
+                    }
+                }
+            }
+        }
+        
+        // Pattern 4: Look for specific EditionMode HTML structure
+        const evalSections = tempDiv.querySelectorAll('.eval, .evaluation, [class*="test"]');
+        for (const section of evalSections) {
+            const sectionTests = extractTestsFromEvalSection(section, debugInfo);
+            if (sectionTests.length > 0) {
+                tests.push(...sectionTests);
+            }
+        }
+        
+    } catch (e) {
+        debugInfo.push(`❌ Error in parseEmbeddedEvaluationData: ${e.message}`);
+    }
+    
+    return tests;
+}
+
+// Helper function to extract input/output pairs from text content
+function extractInputOutputPairs(textContent, debugInfo) {
+    const tests = [];
+    
+    try {
+        // Pattern: input: "something", output: "result"
+        const pairPattern = /input\s*:\s*["']([^"']+)["'][^,]*,\s*output\s*:\s*["']([^"']+)["']/gi;
+        let match;
+        let testId = 1;
+        
+        while ((match = pairPattern.exec(textContent)) !== null) {
+            const [fullMatch, input, output] = match;
+            
+            tests.push({
+                id: testId++,
+                description: `Test: ${input}`,
+                test: `${input}\nassert str(result).strip() == "${output}", f"Expected '${output}', got '{result}'"`
+            });
+            
+            debugInfo.push(`🎯 Extracted input/output pair: ${input} → ${output}`);
+        }
+        
+        // Alternative pattern: "input" -> "output"
+        const arrowPairPattern = /["']([^"']+)["']\s*->\s*["']([^"']+)["']/g;
+        
+        while ((match = arrowPairPattern.exec(textContent)) !== null) {
+            const [fullMatch, input, output] = match;
+            
+            // Only add if it looks like code (contains parentheses or is a function call)
+            if (input.includes('(') || input.includes('=')) {
+                tests.push({
+                    id: testId++,
+                    description: `Test: ${input}`,
+                    test: `${input}\nassert str(result).strip() == "${output}", f"Expected '${output}', got '{result}'"`
+                });
+                
+                debugInfo.push(`🎯 Extracted arrow pair: ${input} → ${output}`);
+            }
+        }
+        
+    } catch (e) {
+        debugInfo.push(`❌ Error extracting input/output pairs: ${e.message}`);
+    }
+    
+    return tests;
+}
+
+// Helper function to extract tests from evaluation sections
+function extractTestsFromEvalSection(sectionElement, debugInfo) {
+    const tests = [];
+    
+    try {
+        const textContent = sectionElement.textContent || '';
+        const innerHTML = sectionElement.innerHTML || '';
+        
+        // Look for input and output fields or labels
+        const inputs = sectionElement.querySelectorAll('input[name*="input"], textarea[name*="input"], [class*="input"]');
+        const outputs = sectionElement.querySelectorAll('input[name*="output"], textarea[name*="output"], [class*="output"]');
+        
+        // If we find matching input/output elements, extract their values
+        const minLength = Math.min(inputs.length, outputs.length);
+        for (let i = 0; i < minLength; i++) {
+            const inputValue = inputs[i].value || inputs[i].textContent || '';
+            const outputValue = outputs[i].value || outputs[i].textContent || '';
+            
+            if (inputValue.trim() && outputValue.trim()) {
+                tests.push({
+                    id: tests.length + 1,
+                    description: `Test: ${inputValue}`,
+                    test: `${inputValue}\nassert str(result).strip() == "${outputValue}", f"Expected '${outputValue}', got '{result}'"`
+                });
+                
+                debugInfo.push(`🎯 Extracted from eval section: ${inputValue} → ${outputValue}`);
+            }
+        }
+        
+    } catch (e) {
+        debugInfo.push(`❌ Error extracting from eval section: ${e.message}`);
+    }
+    
+    return tests;
+}
+
+// Function to convert EditionMode evaluation data to test format (Enhanced version from clonedx)
 function getTestsFromEvaluationData(itemInstance) {
     console.log("=== getTestsFromEvaluationData START ===");
     
@@ -733,10 +1193,22 @@ function getTestsFromEvaluationData(itemInstance) {
         }
     }
     
-    // Method 3: Try parsing HTML content from itemcontent
+    // Method 3: Try parsing HTML content from itemcontent (ENHANCED FOR BASETYPE 19)
     if (instanceObj && instanceObj.itemcontent) {
         debugInfo.push("Parsing itemcontent HTML...");
         try {
+            console.log("🔍 Raw itemcontent for basetype 19:", instanceObj.itemcontent.substring(0, 500));
+            
+            // BASETYPE 19 FIX: Parse evaluation data from HTML content
+            tests = parseEvaluationFromHTML(instanceObj.itemcontent, debugInfo);
+            
+            if (tests.length > 0) {
+                console.log("✅ Successfully parsed evaluation data from HTML:", tests.length);
+                statusMessage = `✅ Tests extracted from HTML content (${tests.length} tests)`;
+                return tests;
+            }
+            
+            // Fallback to original method
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = instanceObj.itemcontent;
             
