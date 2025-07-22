@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.95");
+console.log("type 106 github v4.96");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -842,7 +842,7 @@ function extractFunctionExamples(htmlContent, debugInfo) {
         const textContent = htmlContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
         
         // Pattern 1: function_name(args) → result
-        const arrowPattern = /(\w+)\s*\(\s*([^)]*)\s*\)\s*[→->]\s*([^\s,;.]+)/g;
+        const arrowPattern = /(\w+)\s*\(\s*([^)]*)\s*\)\s*[→\->]\s*([^\s,;.]+)/g;
         let match;
         let testId = 1;
         
