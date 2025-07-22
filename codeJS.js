@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.93");
+console.log("type 106 github v4.94");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -97,6 +97,18 @@ function setItem_106(itemInstance, instanceObj) {
     
     // Store instanceObj for later use in testing
     itemInstance._instanceObj = instanceObj;
+    
+    // BASETYPE 19 FIX: For "Evaluation through JS" items, server doesn't provide evaluation data
+    // We need to manually fetch it if missing
+    console.log("=== BASETYPE 19 EVALUATION FIX ===");
+    console.log(`Item basetype: ${instanceObj.basetype}, evaluation present: ${!!instanceObj.evaluation}`);
+    
+    if (instanceObj.basetype == 19 && !instanceObj.evaluation) {
+        console.log("🔧 Basetype 19 missing evaluation data - attempting to load manually");
+        
+        // Try to fetch evaluation data from server
+        attemptToLoadEvaluationData(itemInstance, instanceObj);
+    }
     
     // Additional debugging: Check if this matches the EditionMode format
     console.log("=== COMPARING TO EDITIONMODE FORMAT ===");
@@ -496,6 +508,168 @@ function setItem_106(itemInstance, instanceObj) {
     console.log("=== setItem_106 END ===", new Date().toISOString());
 }
 
+// Function to attempt loading evaluation data for basetype 19 items
+async function attemptToLoadEvaluationData(itemInstance, instanceObj) {
+    console.log("=== attemptToLoadEvaluationData START ===");
+    
+    const itemId = instanceObj.iid || instanceObj.id;
+    console.log(`📡 Attempting to fetch evaluation data for item ${itemId}`);
+    
+    // Method 1: Try to fetch from EditionMode endpoint
+    try {
+        console.log("🔍 Method 1: Trying EditionMode endpoint...");
+        const response = await fetch(`../edition/GetItem?iid=${itemId}`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const editionData = await response.json();
+            console.log("📋 EditionMode response:", editionData);
+            
+            if (editionData && editionData.evaluation) {
+                console.log("✅ Found evaluation data in EditionMode endpoint!");
+                // Store the evaluation data in instanceObj
+                instanceObj.evaluation = editionData.evaluation;
+                itemInstance._instanceObj = instanceObj;
+                console.log("✅ Evaluation data stored:", editionData.evaluation);
+                return true;
+            }
+        } else {
+            console.log("❌ EditionMode endpoint failed:", response.status);
+        }
+    } catch (e) {
+        console.log("❌ EditionMode endpoint error:", e.message);
+    }
+    
+    // Method 2: Try to fetch from main API with evaluation flag
+    try {
+        console.log("🔍 Method 2: Trying main API with evaluation flag...");
+        const response = await fetch(`GetItem?iid=${itemId}&includeEvaluation=true`, {
+            method: 'GET',
+            credentials: 'include'
+        });
+        
+        if (response.ok) {
+            const apiData = await response.json();
+            console.log("📋 API response:", apiData);
+            
+            if (apiData && apiData.evaluation) {
+                console.log("✅ Found evaluation data in main API!");
+                instanceObj.evaluation = apiData.evaluation;
+                itemInstance._instanceObj = instanceObj;
+                console.log("✅ Evaluation data stored:", apiData.evaluation);
+                return true;
+            }
+        } else {
+            console.log("❌ Main API failed:", response.status);
+        }
+    } catch (e) {
+        console.log("❌ Main API error:", e.message);
+    }
+    
+    // Method 3: Try to check if evaluation data is embedded in HTML but not parsed
+    try {
+        console.log("🔍 Method 3: Searching HTML for embedded evaluation data...");
+        
+        // Look for evaluation data in script tags or data attributes
+        const scriptTags = document.querySelectorAll('script');
+        for (const script of scriptTags) {
+            const scriptContent = script.textContent || script.innerHTML;
+            if (scriptContent.includes(itemId) && scriptContent.includes('evaluation')) {
+                console.log("🎯 Found script with item and evaluation:", scriptContent.substring(0, 200));
+                
+                // Try to extract evaluation data using regex
+                const evalMatch = scriptContent.match(/"evaluation"\s*:\s*"([^"]+)"/);
+                if (evalMatch) {
+                    try {
+                        const evalData = JSON.parse(evalMatch[1].replace(/\\"/g, '"'));
+                        console.log("✅ Extracted evaluation from script:", evalData);
+                        instanceObj.evaluation = JSON.stringify(evalData);
+                        itemInstance._instanceObj = instanceObj;
+                        return true;
+                    } catch (e) {
+                        console.log("❌ Failed to parse extracted evaluation:", e);
+                    }
+                }
+            }
+        }
+        
+        // Look for evaluation in itemInstance HTML
+        const itemHTML = itemInstance.innerHTML;
+        if (itemHTML.includes('evaluation') || itemHTML.includes('data-eval')) {
+            console.log("🎯 Found evaluation-related content in item HTML");
+            
+            // Try to find data-evaluation attributes
+            const evalElements = itemInstance.querySelectorAll('[data-evaluation]');
+            if (evalElements.length > 0) {
+                const evalData = evalElements[0].getAttribute('data-evaluation');
+                console.log("✅ Found data-evaluation attribute:", evalData);
+                instanceObj.evaluation = evalData;
+                itemInstance._instanceObj = instanceObj;
+                return true;
+            }
+        }
+    } catch (e) {
+        console.log("❌ HTML search error:", e.message);
+    }
+    
+    // Method 4: Show user instructions for server fix
+    console.log("❌ All methods failed - evaluation data not accessible");
+    console.log("🔧 SERVER FIX NEEDED:");
+    console.log("   1. Check server endpoint that loads items for basetype 19");
+    console.log("   2. Ensure evaluation field is included in the SQL query");
+    console.log("   3. Verify database contains evaluation data for this item");
+    console.log("   4. Check if different API endpoints are used for basetype 19 vs 24");
+    
+    // Create a temporary fix notification
+    showServerFixNotification(itemInstance);
+    
+    return false;
+}
+
+// Function to show server fix notification
+function showServerFixNotification(itemInstance) {
+    const instanceID = itemInstance.getAttribute("id");
+    let notificationDiv = document.getElementById("server-fix-" + instanceID);
+    
+    if (!notificationDiv) {
+        notificationDiv = document.createElement("div");
+        notificationDiv.id = "server-fix-" + instanceID;
+        notificationDiv.className = "server-fix-notification";
+        notificationDiv.style.cssText = `
+            margin: 10px 0;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            color: #856404;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+        `;
+        
+        notificationDiv.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 8px;">🔧 Server Configuration Issue</div>
+            <div style="margin-bottom: 8px;">
+                This item has <strong>basetype 19</strong> ("Evaluation through JS") but the server is not providing evaluation data.
+                The evaluation data exists in EditionMode but is not loaded in regular view.
+            </div>
+            <div style="font-size: 12px; color: #6c757d;">
+                <strong>Fix needed:</strong> Server must include evaluation field for basetype 19 items.<br/>
+                <strong>Workaround:</strong> Change item to basetype 24 in EditionMode, or fix server query.
+            </div>
+        `;
+        
+        // Insert after the buttons container
+        const buttonsContainer = itemInstance.querySelector(".python-buttons");
+        if (buttonsContainer && buttonsContainer.parentNode) {
+            buttonsContainer.parentNode.insertBefore(notificationDiv, buttonsContainer.nextSibling);
+        } else {
+            itemInstance.appendChild(notificationDiv);
+        }
+    }
+}
+
 // Function to convert EditionMode evaluation data to test format (Enhanced version from clonedex)
 function getTestsFromEvaluationData(itemInstance) {
     console.log("=== getTestsFromEvaluationData START ===");
@@ -739,10 +913,20 @@ assert str(result).strip() == expected, f"Expected '{expected}', got '{result}'"
         console.log("   - itemtypeid:", instanceObj?.itemtypeid);
         console.log("   - basetype:", instanceObj?.basetype);
         
-        statusMessage = "⚠️ No evaluation data found - tests will not run";
-        debugInfo.push("❌ CRITICAL: No evaluation data found in any location");
-        debugInfo.push("📋 This item needs evaluation data created in EditionMode");
-        debugInfo.push("🔧 Or check if the server is loading evaluation data properly");
+        // Provide specific guidance based on basetype
+        if (instanceObj?.basetype == 19) {
+            statusMessage = "🔧 Basetype 19 Server Issue: Evaluation data exists but server not loading it";
+            debugInfo.push("❌ BASETYPE 19 ISSUE: Server not providing evaluation data");
+            debugInfo.push("✅ Evaluation data exists in EditionMode but not loaded in regular view");
+            debugInfo.push("🔧 SOLUTION: Server must include evaluation field for basetype 19 items");
+            debugInfo.push("🔄 WORKAROUND: Change item to basetype 24 in EditionMode");
+            debugInfo.push("📡 ATTEMPTED: Automatic evaluation data fetching from server endpoints");
+        } else {
+            statusMessage = "⚠️ No evaluation data found - tests will not run";
+            debugInfo.push("❌ CRITICAL: No evaluation data found in any location");
+            debugInfo.push("📋 This item needs evaluation data created in EditionMode");
+            debugInfo.push("🔧 Or check if the server is loading evaluation data properly");
+        }
     }
     
     console.log("=== getTestsFromEvaluationData END ===", tests.length, "tests");
