@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github v4.97");
+console.log("type 106 github v4.98");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 
 function createTextArea() {
@@ -960,6 +960,96 @@ function convertEditionModeToTests(evaluationData, debugInfo) {
     return tests;
 }
 
+// Emergency test extraction - tries to find ANY test patterns in plain text
+function extractEmergencyTests(plainText, debugInfo) {
+    const tests = [];
+    debugInfo.push("🆘 Starting emergency test extraction...");
+    
+    try {
+        // Emergency Pattern 1: Any word followed by parentheses and arrow/equals
+        const emergencyPattern1 = /(\w+)\s*\([^)]*\)\s*(?:[=→\->]|should return|returns?|gives?)\s*([^\s,.;]+)/gi;
+        let match;
+        let testId = 1;
+        
+        while ((match = emergencyPattern1.exec(plainText)) !== null) {
+            const [fullMatch, functionName, result] = match;
+            
+            // Extract the actual arguments from the full match
+            const argsMatch = fullMatch.match(/\(([^)]*)\)/);
+            const args = argsMatch ? argsMatch[1] : '';
+            
+            const cleanResult = result.trim().replace(/['"]/g, '');
+            
+            tests.push({
+                id: testId++,
+                description: `Emergency: ${functionName}(${args}) → ${cleanResult}`,
+                test: `result = ${functionName}(${args})\nassert str(result) == "${cleanResult}", f"Expected '${cleanResult}', got '{result}'"`
+            });
+            
+            debugInfo.push(`🆘 Emergency pattern 1: ${functionName}(${args}) → ${cleanResult}`);
+        }
+        
+        // Emergency Pattern 2: Look for any code-like patterns with expected values
+        const emergencyPattern2 = /(\w+\([^)]*\))\s*[:\s]*(\d+|"[^"]*"|'[^']*'|\w+)/gi;
+        
+        while ((match = emergencyPattern2.exec(plainText)) !== null) {
+            const [fullMatch, functionCall, expectedValue] = match;
+            
+            // Skip if already found by pattern 1
+            if (tests.some(t => t.test.includes(functionCall))) continue;
+            
+            const cleanExpected = expectedValue.replace(/['"]/g, '');
+            
+            tests.push({
+                id: testId++,
+                description: `Emergency: ${functionCall} → ${cleanExpected}`,
+                test: `result = ${functionCall}\nassert str(result) == "${cleanExpected}", f"Expected '${cleanExpected}', got '{result}'"`
+            });
+            
+            debugInfo.push(`🆘 Emergency pattern 2: ${functionCall} → ${cleanExpected}`);
+        }
+        
+        // Emergency Pattern 3: Look for simple function definitions and create basic tests
+        const functionDefPattern = /def\s+(\w+)\s*\([^)]*\):/gi;
+        
+        while ((match = functionDefPattern.exec(plainText)) !== null) {
+            const [fullMatch, functionName] = match;
+            
+            // Create a basic test for this function
+            tests.push({
+                id: testId++,
+                description: `Emergency: Basic test for ${functionName}()`,
+                test: `# Basic test for ${functionName}\ntry:\n    result = ${functionName}()\n    print(f"${functionName}() returned: {result}")\nexcept Exception as e:\n    print(f"Error calling ${functionName}(): {e}")`
+            });
+            
+            debugInfo.push(`🆘 Emergency pattern 3: Found function definition ${functionName}`);
+        }
+        
+        // Emergency Pattern 4: Look for any number patterns that might be test results
+        if (tests.length === 0) {
+            const numberPattern = /(\w+)\s*[(\[]?[^)]*[)\]]?\s*[=:→\->]\s*(\d+)/gi;
+            
+            while ((match = numberPattern.exec(plainText)) !== null) {
+                const [fullMatch, possibleFunction, result] = match;
+                
+                // Try to create a reasonable test
+                tests.push({
+                    id: testId++,
+                    description: `Emergency: ${possibleFunction} → ${result}`,
+                    test: `# Emergency test\ntry:\n    result = ${possibleFunction}\n    assert str(result) == "${result}", f"Expected '${result}', got '{result}'"'\nexcept:\n    print("Test could not run - please check function definition")`
+                });
+                
+                debugInfo.push(`🆘 Emergency pattern 4: ${possibleFunction} → ${result}`);
+            }
+        }
+        
+    } catch (e) {
+        debugInfo.push(`❌ Error in emergency extraction: ${e.message}`);
+    }
+    
+    return tests;
+}
+
 // Helper function to parse embedded evaluation data from HTML elements (handles specific basetype 19 format)
 function parseEmbeddedEvaluationData(htmlContent, debugInfo) {
     const tests = [];
@@ -1198,14 +1288,33 @@ function getTestsFromEvaluationData(itemInstance) {
         debugInfo.push("Parsing itemcontent HTML...");
         try {
             console.log("🔍 Raw itemcontent for basetype 19:", instanceObj.itemcontent.substring(0, 500));
+            console.log("🔍 Full itemcontent length:", instanceObj.itemcontent.length);
+            console.log("🔍 itemcontent starts with:", instanceObj.itemcontent.trim().substring(0, 50));
             
-            // BASETYPE 19 FIX: Parse evaluation data from HTML content
+            // FORCE HTML parsing for basetype 19 items
+            console.log("🚀 FORCING HTML parsing for basetype 19...");
             tests = parseEvaluationFromHTML(instanceObj.itemcontent, debugInfo);
+            
+            console.log("🔍 HTML parsing returned:", tests.length, "tests");
             
             if (tests.length > 0) {
                 console.log("✅ Successfully parsed evaluation data from HTML:", tests.length);
                 statusMessage = `✅ Tests extracted from HTML content (${tests.length} tests)`;
                 return tests;
+            } else {
+                console.log("❌ HTML parsing returned 0 tests, trying additional methods...");
+                
+                // Additional fallback: Try to extract ANY function examples from the HTML text
+                const htmlText = instanceObj.itemcontent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+                console.log("🔍 Cleaned HTML text:", htmlText.substring(0, 300));
+                
+                // Look for any potential test patterns in the cleaned text
+                const emergencyTests = extractEmergencyTests(htmlText, debugInfo);
+                if (emergencyTests.length > 0) {
+                    console.log("🆘 Emergency test extraction found:", emergencyTests.length, "tests");
+                    statusMessage = `🆘 Tests extracted via emergency parsing (${emergencyTests.length} tests)`;
+                    return emergencyTests;
+                }
             }
             
             // Fallback to original method
