@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB1.1");
+console.log("type 106 github vB1.5");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -24,8 +24,45 @@ function createTextArea() {
 
 
 function setItem_106(itemInstance, instanceObj) {
+    console.log("=== DETAILED instanceObj INSPECTION ===");
     console.log("File NoteBookInstance_Pyodide.js");
     console.log("id: " + instanceObj.iid);
+    
+    // Store instanceObj for later use in runPython2
+    itemInstance.instanceObjData = instanceObj;
+    
+    // Thorough debugging - log all properties of instanceObj
+    console.log("=== COMPLETE instanceObj DUMP ===");
+    console.log("Raw instanceObj:", instanceObj);
+    
+    // Log each property individually
+    for (let key in instanceObj) {
+        if (instanceObj.hasOwnProperty(key)) {
+            console.log(`instanceObj.${key}:`, instanceObj[key]);
+            
+            // If it looks like JSON, try to parse and log it
+            if (typeof instanceObj[key] === 'string' && 
+                (instanceObj[key].startsWith('{') || instanceObj[key].startsWith('['))) {
+                try {
+                    let parsed = JSON.parse(instanceObj[key]);
+                    console.log(`instanceObj.${key} PARSED:`, parsed);
+                } catch (e) {
+                    console.log(`instanceObj.${key} - Not valid JSON`);
+                }
+            }
+        }
+    }
+    
+    // Check for common evaluation/input patterns
+    let potentialInputKeys = ['evaluation', 'input', 'inputs', 'testCases', 'tests', 'data'];
+    potentialInputKeys.forEach(key => {
+        if (instanceObj[key]) {
+            console.log(`*** FOUND POTENTIAL INPUT DATA in ${key}:`, instanceObj[key]);
+        }
+    });
+    
+    console.log("=== END instanceObj INSPECTION ===");
+    
     answerElement = itemInstance.querySelector(".answer");
 
     if (answerElement.value.trim() != "") {
@@ -105,6 +142,8 @@ function obtenerUltimoDivMatplotlib() {
 }
 
 async function runPython2(button) {
+  console.log("=== STARTING runPython2 EXECUTION ===");
+  
   var pyodide = await pyodideReadyPromise;
   await pyodide.loadPackage("numpy");
   await pyodide.loadPackage("matplotlib");
@@ -113,6 +152,48 @@ async function runPython2(button) {
     itemInstance = button.closest(".itemInstance");
     instanceID = itemInstance.getAttribute("id");
     pyCode = itemInstance.querySelector(".answer").value;
+    
+    console.log("=== PRE-EXECUTION ANALYSIS ===");
+    console.log("Instance ID:", instanceID);
+    console.log("Python code to execute:", pyCode);
+    
+    // Access stored instanceObj data
+    let instanceObjData = itemInstance.instanceObjData;
+    console.log("Stored instanceObjData:", instanceObjData);
+    
+    // Look for input data in various possible locations
+    let inputData = null;
+    let inputSource = null;
+    
+    if (instanceObjData) {
+      console.log("=== SEARCHING FOR INPUT DATA ===");
+      
+      // Check for evaluation data
+      if (instanceObjData.evaluation) {
+        console.log("Found evaluation property:", instanceObjData.evaluation);
+        try {
+          let evalData = JSON.parse(instanceObjData.evaluation);
+          console.log("Parsed evaluation data:", evalData);
+          if (Array.isArray(evalData) && evalData.length > 0 && evalData[0].input) {
+            inputData = evalData[0].input;
+            inputSource = "evaluation[0].input";
+            console.log("*** USING INPUT FROM EVALUATION:", inputData);
+          }
+        } catch (e) {
+          console.log("Could not parse evaluation as JSON:", e);
+        }
+      }
+      
+      // Check other possible input sources
+      ['input', 'inputs', 'testData', 'data'].forEach(key => {
+        if (!inputData && instanceObjData[key]) {
+          console.log(`Found ${key} property:`, instanceObjData[key]);
+          inputData = instanceObjData[key];
+          inputSource = key;
+          console.log(`*** USING INPUT FROM ${key}:`, inputData);
+        }
+      });
+    }
 
   // Redirige stdout
   //let outputDiv = document.getElementById("console-output");
@@ -128,10 +209,35 @@ async function runPython2(button) {
   });
 
   try {
-    await pyodide.runPythonAsync(pyCode);
+    if (inputData) {
+      console.log(`=== EXECUTING WITH INPUT INJECTION (source: ${inputSource}) ===`);
+      outputDiv.textContent += `[DEBUG] Input data found from ${inputSource}: ${inputData}\n`;
+      outputDiv.textContent += `[DEBUG] Injecting input into Python environment\n\n`;
+      
+      // Inject input data into Python environment
+      pyodide.globals.set("input_data", inputData);
+      
+      // Create a modified version of the code that can access input_data
+      let modifiedCode = `
+# Input data injected from ${inputSource}
+print(f"Input data: {input_data}")
+
+# User's original code:
+${pyCode}
+`;
+      console.log("Modified code with input injection:", modifiedCode);
+      await pyodide.runPythonAsync(modifiedCode);
+    } else {
+      console.log("=== EXECUTING WITHOUT INPUT INJECTION ===");
+      outputDiv.textContent += "[DEBUG] No input data found in instanceObj - executing code as-is\n\n";
+      await pyodide.runPythonAsync(pyCode);
+    }
   } catch (err) {
+    console.error("Python execution error:", err);
     outputDiv.textContent += "\n" + err;
   }
+  
+  console.log("=== runPython2 EXECUTION COMPLETE ===");
 }
 
 function saveAnswer_106(button) {
