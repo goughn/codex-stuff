@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB1.5");
+console.log("type 106 github vB2");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -24,45 +24,8 @@ function createTextArea() {
 
 
 function setItem_106(itemInstance, instanceObj) {
-    console.log("=== DETAILED instanceObj INSPECTION ===");
     console.log("File NoteBookInstance_Pyodide.js");
     console.log("id: " + instanceObj.iid);
-    
-    // Store instanceObj for later use in runPython2
-    itemInstance.instanceObjData = instanceObj;
-    
-    // Thorough debugging - log all properties of instanceObj
-    console.log("=== COMPLETE instanceObj DUMP ===");
-    console.log("Raw instanceObj:", instanceObj);
-    
-    // Log each property individually
-    for (let key in instanceObj) {
-        if (instanceObj.hasOwnProperty(key)) {
-            console.log(`instanceObj.${key}:`, instanceObj[key]);
-            
-            // If it looks like JSON, try to parse and log it
-            if (typeof instanceObj[key] === 'string' && 
-                (instanceObj[key].startsWith('{') || instanceObj[key].startsWith('['))) {
-                try {
-                    let parsed = JSON.parse(instanceObj[key]);
-                    console.log(`instanceObj.${key} PARSED:`, parsed);
-                } catch (e) {
-                    console.log(`instanceObj.${key} - Not valid JSON`);
-                }
-            }
-        }
-    }
-    
-    // Check for common evaluation/input patterns
-    let potentialInputKeys = ['evaluation', 'input', 'inputs', 'testCases', 'tests', 'data'];
-    potentialInputKeys.forEach(key => {
-        if (instanceObj[key]) {
-            console.log(`*** FOUND POTENTIAL INPUT DATA in ${key}:`, instanceObj[key]);
-        }
-    });
-    
-    console.log("=== END instanceObj INSPECTION ===");
-    
     answerElement = itemInstance.querySelector(".answer");
 
     if (answerElement.value.trim() != "") {
@@ -142,61 +105,29 @@ function obtenerUltimoDivMatplotlib() {
 }
 
 async function runPython2(button) {
-  console.log("=== STARTING runPython2 EXECUTION ===");
-  
   var pyodide = await pyodideReadyPromise;
   await pyodide.loadPackage("numpy");
   await pyodide.loadPackage("matplotlib");
-  //var code = document.getElementById("python-code").value;
 
     itemInstance = button.closest(".itemInstance");
     instanceID = itemInstance.getAttribute("id");
     pyCode = itemInstance.querySelector(".answer").value;
-    
-    console.log("=== PRE-EXECUTION ANALYSIS ===");
-    console.log("Instance ID:", instanceID);
-    console.log("Python code to execute:", pyCode);
-    
-    // Access stored instanceObj data
-    let instanceObjData = itemInstance.instanceObjData;
-    console.log("Stored instanceObjData:", instanceObjData);
-    
-    // Look for input data in various possible locations
-    let inputData = null;
-    let inputSource = null;
-    
-    if (instanceObjData) {
-      console.log("=== SEARCHING FOR INPUT DATA ===");
-      
-      // Check for evaluation data
-      if (instanceObjData.evaluation) {
-        console.log("Found evaluation property:", instanceObjData.evaluation);
-        try {
-          let evalData = JSON.parse(instanceObjData.evaluation);
-          console.log("Parsed evaluation data:", evalData);
-          if (Array.isArray(evalData) && evalData.length > 0 && evalData[0].input) {
-            inputData = evalData[0].input;
-            inputSource = "evaluation[0].input";
-            console.log("*** USING INPUT FROM EVALUATION:", inputData);
-          }
-        } catch (e) {
-          console.log("Could not parse evaluation as JSON:", e);
-        }
-      }
-      
-      // Check other possible input sources
-      ['input', 'inputs', 'testData', 'data'].forEach(key => {
-        if (!inputData && instanceObjData[key]) {
-          console.log(`Found ${key} property:`, instanceObjData[key]);
-          inputData = instanceObjData[key];
-          inputSource = key;
-          console.log(`*** USING INPUT FROM ${key}:`, inputData);
-        }
-      });
+
+  // Look for tests in the problem div
+  let problemDiv = itemInstance.querySelector(".problem");
+  let tests = [];
+  let testOutputs = [];
+  
+  if (problemDiv && problemDiv.hasAttribute('data-tests')) {
+    try {
+      tests = JSON.parse(problemDiv.getAttribute('data-tests'));
+      console.log("Found tests:", tests);
+    } catch (e) {
+      console.log("Could not parse data-tests:", e);
     }
+  }
 
   // Redirige stdout
-  //let outputDiv = document.getElementById("console-output");
   let outputDiv = document.getElementById("o" + instanceID);
   outputDiv.textContent = "";
 
@@ -209,57 +140,100 @@ async function runPython2(button) {
   });
 
   try {
-    if (inputData) {
-      console.log(`=== EXECUTING WITH INPUT INJECTION (source: ${inputSource}) ===`);
-      outputDiv.textContent += `[DEBUG] Input data found from ${inputSource}: ${inputData}\n`;
-      outputDiv.textContent += `[DEBUG] Injecting input into Python environment\n\n`;
+    // First, run the user's code to define functions
+    await pyodide.runPythonAsync(pyCode);
+    
+    if (tests.length > 0) {
+      // Run first test and show output
+      let firstTest = tests[0];
+      outputDiv.textContent += `\n=== Running Test 1: ${firstTest.description} ===\n`;
       
-      // Inject input data into Python environment
-      pyodide.globals.set("input_data", inputData);
+      // Extract just the function call part (before assert)
+      let testCode = firstTest.test.split('\nassert')[0];
+      let firstOutput = await runTestAndCaptureOutput(pyodide, testCode);
+      outputDiv.textContent += firstOutput + "\n";
+      testOutputs.push(firstOutput);
       
-      // Create a modified version of the code that can access input_data
-      let modifiedCode = `
-# Input data injected from ${inputSource}
-print(f"Input data: {input_data}")
-
-# User's original code:
-${pyCode}
-`;
-      console.log("Modified code with input injection:", modifiedCode);
-      await pyodide.runPythonAsync(modifiedCode);
+      // Run remaining tests silently
+      for (let i = 1; i < tests.length; i++) {
+        let test = tests[i];
+        let testCode = test.test.split('\nassert')[0];
+        let output = await runTestAndCaptureOutput(pyodide, testCode);
+        testOutputs.push(output);
+      }
+      
+      console.log("All test outputs:", testOutputs);
+      
+      // Store test outputs for saveAnswer_106
+      itemInstance.testOutputs = testOutputs;
+      
     } else {
-      console.log("=== EXECUTING WITHOUT INPUT INJECTION ===");
-      outputDiv.textContent += "[DEBUG] No input data found in instanceObj - executing code as-is\n\n";
-      await pyodide.runPythonAsync(pyCode);
+      console.log("No tests found, running code normally");
     }
+    
   } catch (err) {
-    console.error("Python execution error:", err);
     outputDiv.textContent += "\n" + err;
   }
+}
+
+// Helper function to run test code and capture output
+async function runTestAndCaptureOutput(pyodide, testCode) {
+  let capturedOutput = "";
   
-  console.log("=== runPython2 EXECUTION COMPLETE ===");
+  // Temporarily redirect stdout to capture test output
+  let originalStdout = pyodide.runPython("import sys; sys.stdout");
+  
+  pyodide.setStdout({
+    batched: (s) => capturedOutput += s,
+  });
+  
+  try {
+    await pyodide.runPythonAsync(testCode);
+    
+    // If no output was printed, try to get the result value
+    if (capturedOutput.trim() === "") {
+      let result = pyodide.runPython(`
+try:
+    result
+except NameError:
+    "No result"
+`);
+      capturedOutput = result ? result.toString() : "No output";
+    }
+    
+  } catch (err) {
+    capturedOutput = "Error: " + err.toString();
+  }
+  
+  // Restore original stdout behavior
+  pyodide.setStdout({
+    batched: (s) => {
+      let outputDiv = document.getElementById("o" + document.querySelector(".itemInstance").id);
+      if (outputDiv) outputDiv.textContent += s;
+    },
+  });
+  
+  return capturedOutput.trim();
 }
 
 function saveAnswer_106(button) {
-    /* don't execute here because runPython2 is async 
-    var originalText = button.textContent;
-    button.textContent = "Executing...";
-    button.disabled = true;
-
-    await runPython2(button);
-    console.log("executed runPython2");
-    button.textContent = originalText;
-    button.disabled = false;
-    */
     var respObject = {};
     itemInstance = button.closest(".itemInstance");
     pyCode = itemInstance.querySelector(".answer").value;
     respObject.code = pyCode;
 
-    //let outputDiv = document.getElementById("console-output");
-    let outputDiv = document.getElementById("o" + itemInstance.id);
-    output = outputDiv.textContent;
-    respObject.output = output;
+    // Use test outputs array if available, otherwise fall back to single output
+    if (itemInstance.testOutputs && itemInstance.testOutputs.length > 0) {
+        respObject.output = itemInstance.testOutputs;
+        console.log("Sending test outputs array:", itemInstance.testOutputs);
+    } else {
+        // Fallback to original behavior if no tests were run
+        let outputDiv = document.getElementById("o" + itemInstance.id);
+        output = outputDiv.textContent;
+        respObject.output = output;
+        console.log("No test outputs found, sending single output:", output);
+    }
+    
     resp = JSON.stringify(respObject);
     return resp;
 }
