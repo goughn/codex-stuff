@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB1");
+console.log("type 106 github vB1.1");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -23,7 +23,7 @@ function createTextArea() {
 }
 
 
-function setItem_105(itemInstance, instanceObj) {
+function setItem_106(itemInstance, instanceObj) {
     console.log("File NoteBookInstance_Pyodide.js");
     console.log("id: " + instanceObj.iid);
     answerElement = itemInstance.querySelector(".answer");
@@ -134,7 +134,7 @@ async function runPython2(button) {
   }
 }
 
-function saveAnswer_105(button) {
+function saveAnswer_106(button) {
     /* don't execute here because runPython2 is async 
     var originalText = button.textContent;
     button.textContent = "Executing...";
