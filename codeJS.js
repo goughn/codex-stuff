@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB8.4");
+console.log("type 106 github vB9");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -356,19 +356,6 @@ async function runTestWithInput(pyodide, input) {
   console.log("=== STARTING runTestWithInput ===");
   console.log("Input for test:", input);
 
-  let capturedOutput = "";
-
-  // Temporarily redirect stdout to capture test output
-  let originalStdout = pyodide.runPython("import sys; sys.stdout");
-  console.log("Original stdout captured");
-
-  pyodide.setStdout({
-    batched: (s) => {
-      capturedOutput += s;
-      console.log("Captured output chunk:", s);
-    },
-  });
-
   try {
     console.log("Executing test with input...");
     
@@ -392,25 +379,24 @@ async function runTestWithInput(pyodide, input) {
     console.log("Result value:", result);
     console.log("Result type:", typeof result);
     
-    // Always use the result value, regardless of whether there was printed output
-    capturedOutput = result !== undefined && result !== null ? result.toString() : "No output";
+    // Convert result to string, handling 0 correctly
+    let capturedOutput;
+    if (result === 0) {
+      capturedOutput = "0";
+    } else if (result !== undefined && result !== null) {
+      capturedOutput = result.toString();
+    } else {
+      capturedOutput = "No output";
+    }
+    
+    console.log("Final captured output:", capturedOutput);
+    console.log("=== runTestWithInput COMPLETE ===");
+    return capturedOutput;
     
   } catch (err) {
     console.error("Error during test with input:", err);
-    capturedOutput = "Error: " + err.toString();
+    return "Error: " + err.toString();
   }
-
-  // Restore original stdout behavior
-  pyodide.setStdout({
-    batched: (s) => {
-      let outputDiv = document.getElementById("o" + document.querySelector(".itemInstance").id);
-      if (outputDiv) outputDiv.textContent += s;
-    },
-  });
-
-  console.log("Final captured output:", capturedOutput);
-  console.log("=== runTestWithInput COMPLETE ===");
-  return capturedOutput;
 }
 
 function saveAnswer_106(button) {
