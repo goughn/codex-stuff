@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB11");
+console.log("type 106 github vB12");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -29,8 +29,14 @@ function setItem_106(itemInstance, instanceObj) {
     answerElement = itemInstance.querySelector(".answer");
 
     if (answerElement.value.trim() != "") {
-        resp = JSON.parse(answerElement.value);
-        answerElement.value = resp.code;
+        try {
+            resp = JSON.parse(answerElement.value);
+            if (resp && resp.code !== undefined) {
+                answerElement.value = resp.code;
+            }
+        } catch (e) {
+            console.log("Could not parse answer value:", e);
+        }
     }
     
     // create a div for the execution of the phython similar to the file NoteBookInstance_HTML.js
