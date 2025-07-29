@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB7.3");
+console.log("type 106 github vB8");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -389,8 +389,11 @@ async function runTestWithInput(pyodide, input) {
     
     // Get the result value
     let result = pyodide.runPython("result");
-    capturedOutput = result ? result.toString() : "No output";
     console.log("Result value:", result);
+    console.log("Result type:", typeof result);
+    
+    // Always use the result value, regardless of whether there was printed output
+    capturedOutput = result !== undefined && result !== null ? result.toString() : "No output";
     
   } catch (err) {
     console.error("Error during test with input:", err);
