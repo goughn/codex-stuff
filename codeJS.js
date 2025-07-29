@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB4");
+console.log("type 106 github vB5");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -133,18 +133,66 @@ async function runPython2(button) {
     console.log("Problem div innerHTML:", problemDiv.innerHTML.substring(0, 200) + "...");
   }
   
+  // Search for tests in multiple possible locations
+  console.log("=== SEARCHING FOR TESTS IN MULTIPLE LOCATIONS ===");
+  
+  // 1. Check problem div for data-tests
   if (problemDiv && problemDiv.hasAttribute('data-tests')) {
-    console.log("data-tests attribute found:", problemDiv.getAttribute('data-tests'));
+    console.log("Found data-tests in problem div");
     try {
       tests = JSON.parse(problemDiv.getAttribute('data-tests'));
-      console.log("Successfully parsed tests:", tests);
-      console.log("Number of tests found:", tests.length);
+      console.log("Successfully parsed tests from problem div:", tests);
     } catch (e) {
-      console.error("Could not parse data-tests:", e);
+      console.error("Could not parse data-tests from problem div:", e);
     }
-  } else {
-    console.log("No data-tests attribute found in problem div");
   }
+  
+  // 2. Check if tests are in a separate element
+  let testElements = itemInstance.querySelectorAll('[data-tests]');
+  console.log("Elements with data-tests attribute:", testElements.length);
+  testElements.forEach((el, index) => {
+    console.log(`Element ${index} with data-tests:`, el);
+    console.log(`Element ${index} data-tests value:`, el.getAttribute('data-tests'));
+  });
+  
+  // 3. Check if tests are in a script tag
+  let scriptElements = itemInstance.querySelectorAll('script');
+  console.log("Script elements found:", scriptElements.length);
+  scriptElements.forEach((script, index) => {
+    console.log(`Script ${index} content:`, script.textContent.substring(0, 100) + "...");
+  });
+  
+  // 4. Check if tests are in the itemInstance itself
+  console.log("itemInstance attributes:", itemInstance.attributes);
+  if (itemInstance.hasAttribute('data-tests')) {
+    console.log("Found data-tests on itemInstance itself");
+    try {
+      tests = JSON.parse(itemInstance.getAttribute('data-tests'));
+      console.log("Successfully parsed tests from itemInstance:", tests);
+    } catch (e) {
+      console.error("Could not parse data-tests from itemInstance:", e);
+    }
+  }
+  
+  // 5. Check if tests are in the form element
+  let formElement = itemInstance.querySelector('form');
+  if (formElement) {
+    console.log("Form element found:", formElement);
+    console.log("Form attributes:", formElement.attributes);
+    if (formElement.hasAttribute('data-tests')) {
+      console.log("Found data-tests on form element");
+      try {
+        tests = JSON.parse(formElement.getAttribute('data-tests'));
+        console.log("Successfully parsed tests from form:", tests);
+      } catch (e) {
+        console.error("Could not parse data-tests from form:", e);
+      }
+    }
+  }
+  
+  console.log("=== FINAL TEST DETECTION RESULT ===");
+  console.log("Number of tests found:", tests.length);
+  console.log("Tests array:", tests);
 
   // Redirige stdout
   let outputDiv = document.getElementById("o" + instanceID);
