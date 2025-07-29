@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB10");
+console.log("type 106 github vB11");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -237,8 +237,16 @@ async function runPython2(button) {
   console.log("Output div found:", !!outputDiv, "ID:", "o" + instanceID);
   outputDiv.textContent = "";
 
+  // Track if we've shown the first test output
+  let firstTestOutputShown = false;
+
   pyodide.setStdout({
-    batched: (s) => outputDiv.textContent += s,
+    batched: (s) => {
+      // Only show output in div for the first test
+      if (!firstTestOutputShown) {
+        outputDiv.textContent += s;
+      }
+    },
   });
 
   pyodide.setStderr({
@@ -263,6 +271,7 @@ async function runPython2(button) {
       let firstOutput = await runTestWithInput(pyodide, firstTest.input);
       console.log("First test output captured:", firstOutput);
       outputDiv.textContent = firstOutput; // Just show the result, no extra info
+      firstTestOutputShown = true; // Mark that we've shown the first test output
       testOutputs.push(firstOutput);
       
       // Run remaining tests silently
