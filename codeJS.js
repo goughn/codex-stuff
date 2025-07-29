@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB6.2");
+console.log("type 106 github vB7");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -167,6 +167,30 @@ async function runPython2(button) {
   testElements.forEach((el, index) => {
     console.log(`Element ${index} with data-tests:`, el);
     console.log(`Element ${index} data-tests value:`, el.getAttribute('data-tests'));
+    
+    // If we haven't found tests yet, try to parse from this element
+    if (tests.length === 0) {
+      try {
+        let rawTests = JSON.parse(el.getAttribute('data-tests'));
+        console.log(`Successfully parsed tests from element ${index}:`, rawTests);
+        
+        // Convert to simple test format with just inputs
+        tests = rawTests.map((test, testIndex) => {
+          console.log(`Processing test ${testIndex + 1}:`, test);
+          
+          return {
+            id: testIndex + 1,
+            description: `Test ${testIndex + 1}: ${JSON.stringify(test.input)}`,
+            input: test.input,
+            expectedOutput: test.output
+          };
+        });
+        
+        console.log("Processed tests from element:", tests);
+      } catch (e) {
+        console.error(`Could not parse data-tests from element ${index}:`, e);
+      }
+    }
   });
   
   // 3. Check if tests are in a script tag
