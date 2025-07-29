@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB3");
+console.log("type 106 github vB4");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -125,6 +125,13 @@ async function runPython2(button) {
   
   console.log("=== TEST DETECTION ===");
   console.log("Problem div found:", !!problemDiv);
+  console.log("Problem div element:", problemDiv);
+  
+  if (problemDiv) {
+    console.log("Problem div attributes:", problemDiv.attributes);
+    console.log("Problem div has data-tests:", problemDiv.hasAttribute('data-tests'));
+    console.log("Problem div innerHTML:", problemDiv.innerHTML.substring(0, 200) + "...");
+  }
   
   if (problemDiv && problemDiv.hasAttribute('data-tests')) {
     console.log("data-tests attribute found:", problemDiv.getAttribute('data-tests'));
@@ -274,6 +281,11 @@ function saveAnswer_106(button) {
     console.log("saveAnswer_106 called, itemInstance.id:", itemInstance.id);
     console.log("Looking for output div with id:", "o" + itemInstance.id);
     console.log("User's code:", pyCode);
+    
+    // Debug: Check if itemInstance has testOutputs property
+    console.log("itemInstance.testOutputs exists:", itemInstance.hasOwnProperty('testOutputs'));
+    console.log("itemInstance.testOutputs value:", itemInstance.testOutputs);
+    console.log("All itemInstance properties:", Object.keys(itemInstance));
 
     // Use test outputs array if available, otherwise fall back to single output
     if (itemInstance.testOutputs && itemInstance.testOutputs.length > 0) {
@@ -289,6 +301,8 @@ function saveAnswer_106(button) {
         console.log("Sending test outputs array:", itemInstance.testOutputs);
     } else {
         console.log("=== USING FALLBACK SINGLE OUTPUT ===");
+        console.log("No testOutputs found - this means tests weren't run or stored properly");
+        
         // Fallback to original behavior if no tests were run
         let outputDiv = document.getElementById("o" + itemInstance.id);
         if (outputDiv) {
