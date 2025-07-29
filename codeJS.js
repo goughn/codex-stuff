@@ -1,5 +1,5 @@
 var pyodideReadyPromise = loadPyodide();
-console.log("type 106 github vB5");
+console.log("type 106 github vB6");
 console.log("=== codeJS.js LOADED ===", new Date().toISOString());
 function createTextArea() {
     // Find the first element with class 'instanceHolder'
@@ -140,8 +140,22 @@ async function runPython2(button) {
   if (problemDiv && problemDiv.hasAttribute('data-tests')) {
     console.log("Found data-tests in problem div");
     try {
-      tests = JSON.parse(problemDiv.getAttribute('data-tests'));
-      console.log("Successfully parsed tests from problem div:", tests);
+      let rawTests = JSON.parse(problemDiv.getAttribute('data-tests'));
+      console.log("Successfully parsed tests from problem div:", rawTests);
+      
+      // Convert to simple test format with just inputs
+      tests = rawTests.map((test, index) => {
+        console.log(`Processing test ${index + 1}:`, test);
+        
+        return {
+          id: index + 1,
+          description: `Test ${index + 1}: ${JSON.stringify(test.input)}`,
+          input: test.input,
+          expectedOutput: test.output
+        };
+      });
+      
+      console.log("Processed tests:", tests);
     } catch (e) {
       console.error("Could not parse data-tests from problem div:", e);
     }
@@ -222,11 +236,8 @@ async function runPython2(button) {
       console.log("Running first test:", firstTest);
       outputDiv.textContent += `\n=== Running Test 1: ${firstTest.description} ===\n`;
       
-      // Extract just the function call part (before assert)
-      let testCode = firstTest.test.split('\nassert')[0];
-      console.log("First test code (without assert):", testCode);
-      
-      let firstOutput = await runTestAndCaptureOutput(pyodide, testCode);
+      // Run user's function with first test input
+      let firstOutput = await runTestWithInput(pyodide, firstTest.input);
       console.log("First test output captured:", firstOutput);
       outputDiv.textContent += firstOutput + "\n";
       testOutputs.push(firstOutput);
@@ -236,10 +247,8 @@ async function runPython2(button) {
       for (let i = 1; i < tests.length; i++) {
         let test = tests[i];
         console.log(`Running test ${i+1}:`, test.description);
-        let testCode = test.test.split('\nassert')[0];
-        console.log(`Test ${i+1} code:`, testCode);
         
-        let output = await runTestAndCaptureOutput(pyodide, testCode);
+        let output = await runTestWithInput(pyodide, test.input);
         console.log(`Test ${i+1} output:`, output);
         testOutputs.push(output);
       }
@@ -319,12 +328,68 @@ except NameError:
   return capturedOutput.trim();
 }
 
+async function runTestWithInput(pyodide, input) {
+  console.log("=== STARTING runTestWithInput ===");
+  console.log("Input for test:", input);
+
+  let capturedOutput = "";
+
+  // Temporarily redirect stdout to capture test output
+  let originalStdout = pyodide.runPython("import sys; sys.stdout");
+  console.log("Original stdout captured");
+
+  pyodide.setStdout({
+    batched: (s) => {
+      capturedOutput += s;
+      console.log("Captured output chunk:", s);
+    },
+  });
+
+  try {
+    console.log("Executing test with input...");
+    
+    // Call the user's function with the test input
+    let testCode;
+    if (Array.isArray(input)) {
+      // If input is an array, pass as separate arguments
+      let args = input.map(arg => JSON.stringify(arg)).join(', ');
+      testCode = `result = batuketa(${args})`;
+    } else {
+      // If input is a single value
+      testCode = `result = batuketa(${JSON.stringify(input)})`;
+    }
+    
+    console.log("Test code to execute:", testCode);
+    await pyodide.runPythonAsync(testCode);
+    console.log("Test with input executed successfully");
+    
+    // Get the result value
+    let result = pyodide.runPython("result");
+    capturedOutput = result ? result.toString() : "No output";
+    console.log("Result value:", result);
+    
+  } catch (err) {
+    console.error("Error during test with input:", err);
+    capturedOutput = "Error: " + err.toString();
+  }
+
+  // Restore original stdout behavior
+  pyodide.setStdout({
+    batched: (s) => {
+      let outputDiv = document.getElementById("o" + document.querySelector(".itemInstance").id);
+      if (outputDiv) outputDiv.textContent += s;
+    },
+  });
+
+  console.log("Final captured output:", capturedOutput);
+  console.log("=== runTestWithInput COMPLETE ===");
+  return capturedOutput;
+}
+
 function saveAnswer_106(button) {
     console.log("=== saveAnswer_106 CALLED ===");
-    var respObject = {};
     itemInstance = button.closest(".itemInstance");
     pyCode = itemInstance.querySelector(".answer").value;
-    respObject.code = pyCode;
 
     console.log("saveAnswer_106 called, itemInstance.id:", itemInstance.id);
     console.log("Looking for output div with id:", "o" + itemInstance.id);
@@ -334,6 +399,8 @@ function saveAnswer_106(button) {
     console.log("itemInstance.testOutputs exists:", itemInstance.hasOwnProperty('testOutputs'));
     console.log("itemInstance.testOutputs value:", itemInstance.testOutputs);
     console.log("All itemInstance properties:", Object.keys(itemInstance));
+
+    let outputArray = [];
 
     // Use test outputs array if available, otherwise fall back to single output
     if (itemInstance.testOutputs && itemInstance.testOutputs.length > 0) {
@@ -345,8 +412,8 @@ function saveAnswer_106(button) {
             console.log(`  Test ${index + 1}: "${output}"`);
         });
         
-        respObject.output = itemInstance.testOutputs;
-        console.log("Sending test outputs array:", itemInstance.testOutputs);
+        outputArray = itemInstance.testOutputs;
+        console.log("Using test outputs array:", outputArray);
     } else {
         console.log("=== USING FALLBACK SINGLE OUTPUT ===");
         console.log("No testOutputs found - this means tests weren't run or stored properly");
@@ -354,23 +421,23 @@ function saveAnswer_106(button) {
         // Fallback to original behavior if no tests were run
         let outputDiv = document.getElementById("o" + itemInstance.id);
         if (outputDiv) {
-            output = outputDiv.textContent;
-            respObject.output = output;
-            console.log("No test outputs found, sending single output:", output);
+            let output = outputDiv.textContent;
+            outputArray = [output]; // Convert single output to array
+            console.log("No test outputs found, using single output as array:", outputArray);
         } else {
-            console.warn("Output div not found, using empty output");
+            console.warn("Output div not found, using empty array");
             console.warn("Available elements with 'o' prefix:", 
                 Array.from(document.querySelectorAll('[id^="o"]')).map(el => el.id));
-            respObject.output = "";
+            outputArray = [""]; // Empty array
         }
     }
     
-    console.log("=== FINAL RESPONSE OBJECT ===");
-    console.log("Complete respObject:", respObject);
-    console.log("respObject.output type:", typeof respObject.output);
-    console.log("respObject.output is array:", Array.isArray(respObject.output));
+    console.log("=== FINAL OUTPUT ARRAY ===");
+    console.log("Output array:", outputArray);
+    console.log("Output array type:", typeof outputArray);
+    console.log("Output array is array:", Array.isArray(outputArray));
     
-    resp = JSON.stringify(respObject);
+    resp = JSON.stringify(outputArray);
     console.log("=== FINAL JSON SENT TO SERVER ===");
     console.log("JSON string:", resp);
     console.log("JSON length:", resp.length);
